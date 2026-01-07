@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ⚖️ AskTC: Command Center Briefing System
 
-## Getting Started
+**AskTC** is a high-octane, real-time intelligence suite built for live event Q&A and long-term knowledge archiving. It moves beyond standard "chat" tools to provide a professional, military-grade interface for speakers and audiences.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 🚀 The Modules
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 📱 Student Feed (`/`)
+* **Minimalist Submission:** Low-friction interface for rapid-fire intelligence gathering.
+* **Anonymous Entry:** Instant access without the barrier of account creation (Speed is priority).
+* **Live Status:** Real-time updates on question status.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 🎮 Leader Dashboard (`/leader`)
+* **Control Center:** The "God-view" for moderators to approve, answer, or archive questions.
+* **One-Click Cleanup:** Archive entire sessions instantly to refresh the live feed.
+* **Realtime Sync:** No refreshing required; questions flow in as they are asked.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 🎥 Projector Mode (`/projector`)
+* **High-Visibility UI:** Designed for massive displays in large halls.
+* **Celebration Engine:** Integrated **Canvas-Confetti** triggers automatically when a question is marked "Answered."
+* **HUD Display:** Live queue counters and scrolling branding.
 
-## Learn More
+### 🏛️ Intel Vault (`/archives`)
+* **Historical Data:** Every answered question is automatically indexed here.
+* **Search Optimization:** Instant client-side filtering to find specific briefing notes.
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🛠️ The Tech Stack
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Layer | Technology | Purpose |
+| :--- | :--- | :--- |
+| **Framework** | Next.js 15 (App Router) | Server-side rendering & high-speed routing |
+| **Database** | PostgreSQL (via Supabase) | Relational data storage |
+| **Realtime** | Supabase Broadcast | WebSocket-based instant UI updates |
+| **Styling** | Tailwind CSS | War Room / HUD aesthetic |
+| **Animations** | Framer Motion | Smooth state transitions & UI "Pop" |
+| **VFX** | Canvas-Confetti | Engagement rewards for the audience |
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 🛰️ Database Schema (PostgreSQL)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Run this in your Supabase SQL Editor to initialize the system:
+
+```sql
+create table questions (
+  id uuid default uuid_generate_v4() primary key,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  content text not null,
+  guest_name text default 'Anonymous',
+  guest_emoji text default '👤',
+  status text default 'pending', -- pending, answered, archived
+  user_id uuid references auth.users(id) -- for future 24/7 auth feature
+);
+
+-- Enable Realtime for this table
+alter publication supabase_realtime add table questions;
