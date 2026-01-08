@@ -29,7 +29,7 @@ export default function TakeDownButton({ questionId }: { questionId: string }) {
           background: '#1e293b',
           color: '#fff',
         },
-      })
+      }) 
       
       // 3. Smooth Exit: Brief delay before refresh so they see the toast
       setTimeout(() => window.location.reload(), 800)
