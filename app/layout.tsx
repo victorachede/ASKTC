@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 
 // Updated Metadata: Clean and Mature
 export const metadata: Metadata = {
-  title: "Academy | Archives",
+  title: "ASKTC",
   description: "Direct Access to Leadership Guidance",
 };
 
