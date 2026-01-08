@@ -39,14 +39,16 @@ export default function ProjectorPage() {
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'questions' }, 
         async (payload: any) => {
+          // If a question is updated to 'answered', trigger the spotlight
           if (payload.eventType === 'UPDATE' && payload.new.status === 'answered') {
-            setLastAnsweredId(payload.new.id); // Track the one we just answered
+            setLastAnsweredId(payload.new.id);
             triggerBoom();
             
-            // Auto-clear the "Answered" view after 20 seconds to show the next pending
+            // Show the answer for 20 seconds, then return to queue
             setTimeout(() => setLastAnsweredId(null), 20000);
           }
 
+          // Always fetch fresh data to get the joined 'answers' table content
           const freshData = await getQuestions();
           setQuestions(freshData || []);
         }
@@ -56,12 +58,13 @@ export default function ProjectorPage() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  // LOGIC: Show the last answered question (with its answer) OR the newest pending
+  // LOGIC: Priority 1: The question that was JUST answered
+  // Priority 2: The oldest 'pending' question (First In, First Out)
   const displayQuestion = lastAnsweredId 
     ? questions.find(q => q.id === lastAnsweredId)
     : questions
         .filter(q => q.status === 'pending')
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0];
 
   return (
     <main className="h-screen bg-slate-950 text-white overflow-hidden flex flex-col p-16 font-sans">
@@ -102,23 +105,32 @@ export default function ProjectorPage() {
           </div>
         ) : displayQuestion ? (
           <div className="max-w-7xl animate-in fade-in zoom-in-95 duration-700">
+            {/* GUEST INFO */}
             <div className="inline-flex items-center gap-4 bg-white/5 border border-white/10 px-6 py-2 rounded-full mb-12">
-              <span className="text-5xl">{displayQuestion.guest_emoji || "👤"}</span>
+              <span className="text-5xl">
+                {displayQuestion.profiles?.emoji_key || "👤"}
+              </span>
               <span className="text-2xl font-black text-amber-500 uppercase tracking-tighter">
-                {displayQuestion.guest_name}
+                {displayQuestion.profiles?.full_name || "Anonymous Guest"}
               </span>
             </div>
             
+            {/* THE QUESTION CONTENT */}
             <h2 className={`font-black leading-[1.05] tracking-tighter text-white drop-shadow-2xl transition-all duration-500 ${lastAnsweredId ? 'text-5xl md:text-7xl mb-12' : 'text-7xl md:text-9xl'}`}>
               "{displayQuestion.content}"
             </h2>
 
-            {/* THE ANSWER BOX - Shows up when a question is answered */}
-            {lastAnsweredId && displayQuestion.answer && (
-              <div className="bg-emerald-500/10 border-2 border-emerald-500/50 p-12 rounded-[40px] animate-in slide-in-from-bottom-10 duration-1000">
-                <span className="text-emerald-500 font-black uppercase tracking-[0.3em] text-xl block mb-6">Verified Response</span>
-                <p className="text-4xl md:text-6xl font-bold text-white leading-tight">
-                  {displayQuestion.answer}
+            {/* THE ANSWER BOX - Pulling from the answers table join */}
+            {lastAnsweredId && displayQuestion.answers && displayQuestion.answers.length > 0 && (
+              <div className="bg-emerald-500/10 border-2 border-emerald-500/50 p-12 rounded-[40px] animate-in slide-in-from-bottom-10 duration-1000 text-left">
+                <div className="flex items-center gap-3 mb-6">
+                   <span className="text-emerald-500 font-black uppercase tracking-[0.3em] text-xl">Verified Response</span>
+                   <span className="text-slate-500 font-bold text-sm uppercase tracking-widest border-l border-slate-700 pl-3">
+                     Leader: {displayQuestion.answers[0].profiles?.full_name || "Official"}
+                   </span>
+                </div>
+                <p className="text-4xl md:text-6xl font-bold text-white leading-tight italic">
+                  {displayQuestion.answers[0].answer_body}
                 </p>
               </div>
             )}
