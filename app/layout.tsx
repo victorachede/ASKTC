@@ -1,75 +1,68 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
-import { BottomNav } from "@/components/BottomNav"; 
-import DesktopHeader from "@/components/DesktopHeader"; // 1. Import the header
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
   subsets: ["latin"],
+  variable: "--font-inter",
+  display: 'swap',
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-// Updated Metadata: Clean and Mature
 export const metadata: Metadata = {
-  title: "ASKTC",
-  description: "Direct Access to Leadership Guidance",
+  title: "ASK THE CHURCH",
+  description: "The professional standard for ecclesiastical dialogue.",
+  metadataBase: new URL('https://askthechurch.com'),
+  alternates: {
+    canonical: '/',
+  },
+  openGraph: {
+    title: "ASK THE CHURCH",
+    description: "Intelligence in every inquiry.",
+    type: "website",
+  },
+  robots: "index, follow",
 };
 
-export default async function RootLayout({
+export const viewport: Viewport = {
+  themeColor: "#FFFFFF",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false, // Essential for high-end mobile UX
+};
+
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const cookieStore = await cookies();
-  
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll().map(({ name, value }) => ({ name, value }));
-        },
-      },
-    }
-  );
-
-  const { data: { session } } = await supabase.auth.getSession();
-
   return (
     <html lang="en" className="scroll-smooth">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-50 text-slate-900`}>
+      <body className={`${inter.variable} font-sans antialiased bg-white text-[#1D1D1F]`}>
+        
+        {/* RAW TOAST NOTIFICATIONS */}
         <Toaster 
           position="top-center"
           toastOptions={{
+            duration: 3000,
             style: {
-              background: '#0f172a',
-              color: '#ffffff',
-              borderRadius: '12px', // Mature radius
-              padding: '16px 24px',
+              background: '#1D1D1F',
+              color: '#FFFFFF',
+              borderRadius: '0px', 
               fontSize: '12px',
-              fontWeight: '800',
-              textTransform: 'uppercase',
+              fontWeight: '700',
+              letterSpacing: '0.1em',
+              padding: '12px 24px',
             },
           }}
         />
-        
-        {/* 2. Desktop Header: Only shows on screens > 768px */}
-        <DesktopHeader />
 
-        {/* The Main Content Area */}
-        {children}
+        {/* CONTENT STACK */}
+        <div className="relative flex flex-col min-h-screen">
+          {children}
+        </div>
 
-        {/* 3. Bottom Navigation: Only shows on mobile screens < 768px */}
-        <BottomNav userId={session?.user?.id} />
       </body>
     </html>
   );
