@@ -1,8 +1,10 @@
 'use client'
+
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase' 
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { ArrowLeft } from 'lucide-react'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -25,52 +27,56 @@ export default function LoginPage() {
       setErrorMsg(error.message)
       setLoading(false)
     } else {
-      // Refresh the page to trigger the Middleware session check
       router.push('/')
       router.refresh()
     }
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-sm bg-slate-800 border border-slate-700 p-8 rounded-[2.5rem] shadow-2xl">
-        
-        <header className="text-center mb-10">
-          <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-             <span className="text-3xl">🔑</span>
-          </div>
-          <h1 className="text-3xl font-black text-white uppercase tracking-tighter italic">
-            Impact <span className="text-amber-500">Academy</span>
+    <div className="min-h-screen bg-white text-black flex flex-col items-center justify-center p-6 antialiased font-sans" style={{ fontFamily: '"Inter", sans-serif' }}>
+      
+      {/* Top Navigation - Logo Removed */}
+      <div className="absolute top-0 left-0 right-0 h-20 flex items-center px-8">
+        <Link href="/" className="flex items-center gap-2 text-[10px] font-black tracking-[0.2em] uppercase hover:opacity-60 transition-opacity">
+          <ArrowLeft size={14} />
+          <span>BACK</span>
+        </Link>
+      </div>
+
+      <div className="w-full max-w-[340px]">
+        <header className="mb-12">
+          <h1 className="text-4xl font-bold tracking-tighter uppercase italic leading-none">
+            Sign In
           </h1>
-          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">
-            Sign in to continue
+          <p className="text-gray-400 text-[10px] font-bold uppercase tracking-[0.2em] mt-3">
+            Enter your credentials to continue
           </p>
         </header>
 
         {errorMsg && (
-          <div className="mb-6 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 text-xs font-bold uppercase text-center">
+          <div className="mb-8 p-4 border border-black text-[11px] font-bold uppercase tracking-wider text-center">
             {errorMsg}
           </div>
         )}
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-[10px] text-slate-500 font-black uppercase ml-4">Email</label>
+        <form onSubmit={handleLogin} className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-4">Email</label>
             <input 
               type="email" 
-              placeholder="victor@church.com" 
-              className="w-full bg-slate-900 border border-slate-700 p-4 rounded-2xl text-white outline-none focus:border-amber-500 transition-all"
+              placeholder="email@example.com" 
+              className="w-full border border-gray-100 bg-gray-50/50 px-4 py-4 outline-none focus:border-black focus:bg-white transition-all text-sm font-medium placeholder:text-gray-300 rounded-xl"
               onChange={(e) => setEmail(e.target.value)}
               required
             />
           </div>
           
-          <div className="space-y-1">
-            <label className="text-[10px] text-slate-500 font-black uppercase ml-4">Password</label>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-4">Password</label>
             <input 
               type="password" 
               placeholder="••••••••" 
-              className="w-full bg-slate-900 border border-slate-700 p-4 rounded-2xl text-white outline-none focus:border-amber-500 transition-all"
+              className="w-full border border-gray-100 bg-gray-50/50 px-4 py-4 outline-none focus:border-black focus:bg-white transition-all text-sm font-medium placeholder:text-gray-300 rounded-xl"
               onChange={(e) => setPassword(e.target.value)}
               required
             />
@@ -78,21 +84,27 @@ export default function LoginPage() {
 
           <button 
             disabled={loading}
-            className="w-full bg-amber-500 hover:bg-amber-400 text-slate-900 font-black py-4 rounded-2xl uppercase tracking-widest transition-all disabled:opacity-50 mt-4 shadow-lg shadow-amber-500/20"
+            className="w-full bg-black text-white font-bold py-5 text-xs uppercase tracking-[0.2em] hover:bg-zinc-800 transition-all disabled:opacity-50 mt-6 rounded-xl"
           >
-            {loading ? 'Authenticating...' : 'Enter Academy'}
+            {loading ? 'Processing...' : 'Login'}
           </button>
         </form>
 
-        <footer className="mt-8 text-center pt-6 border-t border-slate-700/50">
-          <p className="text-slate-400 text-sm font-medium">
-            First time? 
-            <Link href="/signup" className="text-amber-500 font-bold ml-2 hover:underline">
-              Create Account
-            </Link>
-          </p>
+        <footer className="mt-12 space-y-4">
+          <Link href="/signup" className="block text-center text-[10px] font-black uppercase tracking-widest border border-gray-100 py-4 rounded-xl hover:border-black transition-colors">
+            Create an account
+          </Link>
+          <div className="text-center">
+             <button className="text-[9px] font-bold text-gray-300 uppercase tracking-widest hover:text-black transition-colors">
+               Forgot password?
+             </button>
+          </div>
         </footer>
       </div>
+
+      <p className="fixed bottom-8 text-[9px] font-medium text-gray-300 uppercase tracking-[0.3em]">
+        © 2026 asktc platform
+      </p>
     </div>
   )
 }

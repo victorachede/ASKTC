@@ -27,17 +27,29 @@ export default function QuestionInput() {
     setLoading(true)
     
     try {
-      const { error } = await supabase.from('questions').insert([{ 
+      const { data: userData } = await supabase.auth.getSession()
+      const user = userData.session?.user
+
+      const { data, error } = await supabase.from('questions').insert([{ 
         content: text.trim(), 
         guest_name: name.trim(),
-        guest_emoji: '👤', 
+        user_id: user?.id || null, // Link to user if logged in
+        guest_emoji: user?.user_metadata?.emoji_key || '👤', 
         status: 'pending',
         room_id: slug 
-      }])
+      }]).select()
 
       if (error) throw error
       
-      toast.success("Question submitted successfully!")
+      // TRACKING LOGIC: Store ID for guest-to-user conversion later
+      if (!user && data?.[0]?.id) {
+        const existing = JSON.parse(localStorage.getItem('my_asked_questions') || '[]');
+        localStorage.setItem('my_asked_questions', JSON.stringify([...existing, data[0].id]));
+        // Dispatch event to update the RoomPage banner immediately
+        window.dispatchEvent(new Event('storage'));
+      }
+
+      toast.success("Question sent")
       setText('') 
       setName('')
       setIsOpen(false)
@@ -54,94 +66,74 @@ export default function QuestionInput() {
       <div className="fixed bottom-8 left-0 right-0 z-50 flex justify-center pointer-events-none">
         <button 
           onClick={() => setIsOpen(true)}
-          className="pointer-events-auto bg-black text-white h-14 px-8 rounded-full flex items-center gap-2 shadow-2xl hover:bg-gray-900 transition-all"
-          style={{ fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", sans-serif' }}
+          className="pointer-events-auto bg-black text-white h-14 px-8 rounded-full flex items-center gap-3 shadow-2xl hover:scale-105 transition-all active:scale-95"
+          style={{ fontFamily: '"Inter", sans-serif' }}
         >
-          <Plus size={20} />
-          <span className="font-semibold text-sm">Ask a Question</span>
+          <Plus size={18} strokeWidth={3} />
+          <span className="font-black text-[10px] uppercase tracking-[0.2em]">Ask a Question</span>
         </button>
       </div>
     )
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/50 backdrop-blur-sm" style={{ fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", sans-serif' }}>
-      <div 
-        className="absolute inset-0" 
-        onClick={() => setIsOpen(false)} 
-      />
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-6 bg-black/20 backdrop-blur-sm" style={{ fontFamily: '"Inter", sans-serif' }}>
+      <div className="absolute inset-0" onClick={() => setIsOpen(false)} />
       
-      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-lg bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-10 duration-300">
         
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold" style={{ letterSpacing: '-0.02em' }}>
-            Ask a Question
+        <div className="flex items-center justify-between p-8 pb-4">
+          <h2 className="text-2xl font-bold tracking-tighter uppercase italic">
+            New Question
           </h2>
           <button 
             type="button" 
             onClick={() => setIsOpen(false)}
-            className="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors"
+            className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-50 transition-colors"
           >
             <X size={20} />
           </button>
         </div>
 
-        {/* Form */}
-        <div className="p-6">
-          <div className="space-y-5">
-            
-            <div className="space-y-3">
-              <label className="text-sm font-semibold text-gray-900 block">
-                Your Name
-              </label>
-              <input 
-                type="text" 
-                autoFocus
-                placeholder="e.g. John Doe" 
-                className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-3 text-base font-medium outline-none focus:border-black focus:ring-4 focus:ring-black/5 transition-all"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-              <p className="text-sm text-gray-500">
-                This will be shown with your question
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              <label className="text-sm font-semibold text-gray-900 block">
-                Your Question
-              </label>
-              <textarea 
-                placeholder="What would you like to ask?"
-                className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-3 text-base font-medium outline-none focus:border-black focus:ring-4 focus:ring-black/5 transition-all resize-none min-h-[120px]"
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-              />
-              <p className="text-sm text-gray-500">
-                {text.length} characters
-              </p>
-            </div>
-
-            <button 
-              onClick={handleSubmit}
-              disabled={!text.trim() || !name.trim() || loading} 
-              className="w-full bg-black text-white h-12 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-            >
-              {loading ? (
-                <>
-                  <Loader2 size={18} className="animate-spin" />
-                  <span>Submitting...</span>
-                </>
-              ) : (
-                <>
-                  <span>Submit Question</span>
-                  <Send size={18} />
-                </>
-              )}
-            </button>
+        <form onSubmit={handleSubmit} className="p-8 pt-2 space-y-6">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-4">Identity</label>
+            <input 
+              type="text" 
+              placeholder="Your Name" 
+              className="w-full border border-gray-100 bg-gray-50/50 px-5 py-4 outline-none focus:border-black focus:bg-white transition-all text-sm font-medium placeholder:text-gray-300 rounded-2xl"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
           </div>
-        </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-4">Question</label>
+            <textarea 
+              placeholder="What's on your mind?"
+              className="w-full border border-gray-100 bg-gray-50/50 px-5 py-4 outline-none focus:border-black focus:bg-white transition-all text-sm font-medium placeholder:text-gray-300 rounded-2xl resize-none min-h-[140px]"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              required
+            />
+          </div>
+
+          <button 
+            type="submit"
+            disabled={!text.trim() || !name.trim() || loading} 
+            className="w-full bg-black text-white h-16 rounded-2xl font-bold text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-zinc-800 disabled:opacity-50 transition-all active:scale-[0.98]"
+          >
+            {loading ? (
+              <Loader2 size={18} className="animate-spin" />
+            ) : (
+              <>
+                <span>Send to Room</span>
+                <Send size={14} strokeWidth={3} />
+              </>
+            )}
+          </button>
+        </form>
       </div>
     </div>
   )

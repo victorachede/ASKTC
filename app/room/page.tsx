@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Share2, ChevronLeft, MessageCircle, Copy, Check, Clock } from 'lucide-react'
+import { Share2, ChevronLeft, MessageCircle, Copy, Check, Clock, Sparkles, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import QuestionInput from '@/components/QuestionInput'
 import { supabase } from '@/lib/supabase'
@@ -16,8 +16,19 @@ export default function RoomPage() {
   const [questions, setQuestions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
+  const [session, setSession] = useState<any>(null)
+  const [localQuestionCount, setLocalQuestionCount] = useState(0)
 
   useEffect(() => {
+    // 1. Check Auth Status
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+    })
+
+    // 2. Check Local Storage for unclaimed questions
+    const saved = JSON.parse(localStorage.getItem('my_asked_questions') || '[]')
+    setLocalQuestionCount(saved.length)
+
     if (!slug) { router.push('/'); return; }
 
     const fetchQuestions = async () => {
@@ -46,151 +57,112 @@ export default function RoomPage() {
     }
   }, [slug, router])
 
-  if (!slug) return null
-
   const copyLink = () => {
     navigator.clipboard.writeText(window.location.href)
     setCopied(true)
-    toast.success("Link copied to clipboard!")
+    toast.success("Link copied!")
     setTimeout(() => setCopied(false), 2000)
   }
 
+  if (!slug) return null
+
   return (
-    <main className="min-h-screen bg-gradient-to-br from-gray-50 to-white pb-32" style={{ fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", sans-serif' }}>
+    <main className="min-h-screen bg-white text-black flex flex-col antialiased font-sans" style={{ fontFamily: '"Inter", sans-serif' }}>
       
       {/* Navigation */}
-      <nav className="sticky top-0 w-full h-16 bg-white/80 backdrop-blur-xl border-b border-gray-200 z-50">
-        <div className="max-w-5xl mx-auto px-6 h-full flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link 
-              href="/" 
-              className="flex items-center gap-2 text-gray-600 hover:text-black transition-colors group"
-            >
-              <ChevronLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
-              <span className="text-sm font-medium">Home</span>
-            </Link>
-            <div className="hidden md:flex items-center gap-3">
-              <div className="w-1 h-1 bg-gray-300 rounded-full" />
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
-                  <MessageCircle size={16} className="text-white" />
-                </div>
-                <span className="text-sm font-semibold" style={{ letterSpacing: '-0.02em' }}>{slug}</span>
-              </div>
-            </div>
-          </div>
-
+      <nav className="sticky top-0 w-full h-20 bg-white/80 backdrop-blur-md border-b border-gray-100 z-50 flex items-center justify-between px-8">
+        <Link href="/" className="flex items-center gap-2 text-[10px] font-black tracking-[0.2em] uppercase hover:opacity-60 transition-opacity">
+          <ChevronLeft size={14} />
+          <span>BACK</span>
+        </Link>
+        
+        <div className="flex items-center gap-4">
           <button 
             onClick={copyLink}
-            className={`h-10 px-5 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
-              copied ? 'bg-green-600 text-white' : 'bg-black text-white hover:bg-gray-900'
-            }`}
+            className="flex items-center gap-2 text-[10px] font-black tracking-[0.2em] uppercase border border-gray-100 px-4 py-2 rounded-full hover:border-black transition-all"
           >
-            {copied ? (
-              <>
-                <Check size={16} />
-                <span className="hidden sm:inline">Copied</span>
-              </>
-            ) : (
-              <>
-                <Copy size={16} />
-                <span className="hidden sm:inline">Copy Link</span>
-              </>
-            )}
+            {copied ? <Check size={12} /> : <Share2 size={12} />}
+            {copied ? 'COPIED' : 'SHARE'}
           </button>
         </div>
       </nav>
 
       {/* Main Content */}
-      <div className="max-w-5xl mx-auto px-6 pt-12 pb-12">
-        
-        {/* Header */}
-        <header className="mb-12">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                <span className="text-sm font-semibold text-gray-600">Live Room</span>
-              </div>
-              <h1 className="text-4xl md:text-5xl font-semibold mb-3" style={{ letterSpacing: '-0.05em' }}>
-                {slug}
-              </h1>
-              <p className="text-lg text-gray-600">
-                Questions will appear here in real-time
-              </p>
-            </div>
+      <div className="max-w-3xl mx-auto w-full px-6 pt-16 pb-32">
+        <header className="mb-16">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-2 h-2 bg-black rounded-full animate-pulse" />
+            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400">Live Session</span>
           </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-white border border-gray-200 rounded-xl p-4">
-              <p className="text-xs text-gray-500 mb-1">Total Questions</p>
-              <p className="text-2xl font-semibold" style={{ letterSpacing: '-0.05em' }}>{questions.length}</p>
-            </div>
-            <div className="bg-white border border-gray-200 rounded-xl p-4">
-              <p className="text-xs text-gray-500 mb-1">Status</p>
-              <div className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                <p className="text-sm font-semibold">Live</p>
-              </div>
-            </div>
-          </div>
+          <h1 className="text-5xl font-bold tracking-tighter uppercase italic leading-none mb-4">
+            {slug}
+          </h1>
+          <p className="text-gray-400 text-sm font-medium tracking-tight">
+            Real-time conversation for the {slug} group.
+          </p>
         </header>
 
-        {/* Questions Feed */}
-        <section className="space-y-6">
-          <h2 className="text-xl font-semibold" style={{ letterSpacing: '-0.02em' }}>Recent Questions</h2>
-          
+        {/* Question Feed */}
+        <div className="space-y-12">
           {loading ? (
-            <div className="flex justify-center py-20">
-              <div className="w-8 h-8 border-4 border-gray-200 border-t-black rounded-full animate-spin" />
+            <div className="flex flex-col items-center py-20 gap-4">
+              <div className="w-5 h-5 border-2 border-gray-100 border-t-black rounded-full animate-spin" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-300">Syncing...</span>
             </div>
           ) : questions.length === 0 ? (
-            <div className="bg-white border border-gray-200 rounded-3xl p-16 text-center">
-              <div className="w-20 h-20 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                <MessageCircle size={32} className="text-gray-300" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2" style={{ letterSpacing: '-0.02em' }}>
-                No questions yet
-              </h3>
-              <p className="text-gray-500 mb-6 max-w-md mx-auto">
-                Be the first to ask a question! Use the button below to submit your question.
-              </p>
+            <div className="py-20 text-center border-2 border-dashed border-gray-50 rounded-[2rem]">
+              <p className="text-gray-300 text-xs font-black uppercase tracking-[0.2em]">No questions yet</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {questions.map((q) => (
-                <div 
-                  key={q.id} 
-                  className="bg-white border border-gray-200 rounded-2xl p-8 hover:border-gray-300 hover:shadow-lg transition-all"
-                >
-                  <div className="flex items-start gap-4 mb-6">
-                    <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
-                      <span className="text-lg font-semibold">
-                        {q.guest_name?.charAt(0).toUpperCase()}
+            questions.map((q) => (
+              <div key={q.id} className="group relative">
+                <div className="flex items-start gap-5">
+                  <div className="text-2xl pt-1 grayscale group-hover:grayscale-0 transition-all">
+                    {q.user_emoji || '👤'}
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] font-black uppercase tracking-widest">{q.guest_name || 'Anonymous'}</span>
+                      <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">
+                        {new Date(q.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="font-semibold text-sm">{q.guest_name}</span>
-                        <span className="text-xs text-gray-400 flex items-center gap-1">
-                          <Clock size={12} />
-                          {new Date(q.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                      <p className="text-xl font-medium leading-relaxed" style={{ letterSpacing: '-0.02em' }}>
-                        {q.content}
-                      </p>
-                    </div>
+                    <p className="text-xl font-medium tracking-tight leading-snug text-gray-800">
+                      {q.content}
+                    </p>
                   </div>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))
           )}
-        </section>
+        </div>
       </div>
 
-      <QuestionInput />
+      {/* Claim Identity Banner (Only shows for Guests with questions) */}
+      {!session && localQuestionCount > 0 && (
+        <div className="fixed bottom-32 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-md z-40 animate-in slide-in-from-bottom-8">
+          <Link href="/signup" className="flex items-center justify-between bg-black text-white p-4 rounded-2xl shadow-2xl hover:scale-[1.02] transition-transform group">
+            <div className="flex items-center gap-3 px-2">
+              <Sparkles size={16} className="text-gray-400 group-hover:text-white transition-colors" />
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 leading-none mb-1">Save your history</span>
+                <span className="text-[11px] font-bold">You've asked {localQuestionCount} questions</span>
+              </div>
+            </div>
+            <div className="bg-white/10 p-2 rounded-xl">
+              <ArrowRight size={16} />
+            </div>
+          </Link>
+        </div>
+      )}
+
+      {/* Floating Input Component */}
+      <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white via-white to-transparent pointer-events-none">
+        <div className="max-w-3xl mx-auto pointer-events-auto">
+          <QuestionInput />
+        </div>
+      </div>
+
     </main>
   )
 }
