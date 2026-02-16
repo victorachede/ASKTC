@@ -291,7 +291,7 @@ export default function RoomPage() {
       {/* STICKY INPUT BAR */}
       <div className="fixed bottom-0 left-0 right-0 p-6 bg-linear-to-t from-black via-black/90 to-transparent z-40">
         <div className="max-w-2xl mx-auto">
-          <QuestionInput />
+          <QuestionInput/>
         </div>
       </div>
     </main>
