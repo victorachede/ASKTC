@@ -3,10 +3,12 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
 
+// Configured Inter to be the primary variable
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
   display: 'swap',
+  weight: ['300', '400', '500', '600', '700', '800', '900'], // Added full weight range for that "World Class" look
 });
 
 export const metadata: Metadata = {
@@ -25,11 +27,11 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#FFFFFF",
+  themeColor: "#0a0a0a", // Updated to match your new Dark UI
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  userScalable: false, // Essential for high-end mobile UX
+  userScalable: false,
 };
 
 export default function RootLayout({
@@ -38,27 +40,30 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="scroll-smooth">
-      <body className={`${inter.variable} font-sans antialiased bg-white text-[#1D1D1F]`}>
+    <html lang="en" className={`${inter.variable} scroll-smooth`}>
+      {/* 1. font-sans now points to Inter via Tailwind config 
+          2. bg-[#0a0a0a] ensures no "white flash" on load
+      */}
+      <body className="font-sans antialiased bg-[#0a0a0a] text-white overflow-x-hidden">
         
-        {/* RAW TOAST NOTIFICATIONS */}
         <Toaster 
           position="top-center"
           toastOptions={{
             duration: 3000,
             style: {
-              background: '#1D1D1F',
+              background: '#1a1a1a',
               color: '#FFFFFF',
-              borderRadius: '0px', 
+              borderRadius: '12px', // Matches your new rounded UI
+              border: '1px solid rgba(255,255,255,0.1)',
               fontSize: '12px',
-              fontWeight: '700',
-              letterSpacing: '0.1em',
-              padding: '12px 24px',
+              fontWeight: '600',
+              letterSpacing: '0.02em',
+              padding: '12px 20px',
+              backdropFilter: 'blur(10px)',
             },
           }}
         />
 
-        {/* CONTENT STACK */}
         <div className="relative flex flex-col min-h-screen">
           {children}
         </div>

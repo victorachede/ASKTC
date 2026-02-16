@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, X, Send, Loader2 } from 'lucide-react' 
+import { Plus, X, Send, Loader2, MessageCircle } from 'lucide-react' 
 import { supabase } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 import toast from 'react-hot-toast'
@@ -13,6 +13,8 @@ export default function QuestionInput() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const params = useParams()
+  
+  // Ensure we have a string slug from the URL
   const slug = typeof params?.slug === 'string' ? params.slug : ''
 
   useEffect(() => {
@@ -27,35 +29,51 @@ export default function QuestionInput() {
     setLoading(true)
     
     try {
+      // 1. Resolve the Slug to a real Room ID
+      // This stops the 400 Bad Request error by providing a UUID instead of a string
+      const { data: roomData, error: roomError } = await supabase
+        .from('rooms')
+        .select('id')
+        .eq('slug', slug)
+        .single();
+
+      if (roomError || !roomData) {
+        toast.error("Room connection failed");
+        setLoading(false);
+        return;
+      }
+
+      // 2. Identify the sender
       const { data: userData } = await supabase.auth.getSession()
       const user = userData.session?.user
 
+      // 3. Insert the question using the resolved Room ID
       const { data, error } = await supabase.from('questions').insert([{ 
         content: text.trim(), 
         guest_name: name.trim(),
-        user_id: user?.id || null, // Link to user if logged in
+        user_id: user?.id || null,
         guest_emoji: user?.user_metadata?.emoji_key || '👤', 
         status: 'pending',
-        room_id: slug 
+        room_id: roomData.id // Official UUID from the rooms table
       }]).select()
 
       if (error) throw error
       
-      // TRACKING LOGIC: Store ID for guest-to-user conversion later
+      // 4. Local tracking for the user's history banner
       if (!user && data?.[0]?.id) {
         const existing = JSON.parse(localStorage.getItem('my_asked_questions') || '[]');
         localStorage.setItem('my_asked_questions', JSON.stringify([...existing, data[0].id]));
-        // Dispatch event to update the RoomPage banner immediately
         window.dispatchEvent(new Event('storage'));
       }
 
-      toast.success("Question sent")
+      toast.success("Sent to the stage")
       setText('') 
       setName('')
       setIsOpen(false)
       router.refresh()
-    } catch (err) {
-      toast.error("Failed to send question")
+    } catch (err: any) {
+      console.error('Submission error:', err.message)
+      toast.error("Submission failed")
     } finally {
       setLoading(false)
     }
@@ -63,73 +81,81 @@ export default function QuestionInput() {
 
   if (!isOpen) {
     return (
-      <div className="fixed bottom-8 left-0 right-0 z-50 flex justify-center pointer-events-none">
+      <div className="fixed bottom-10 left-0 right-0 z-50 flex justify-center pointer-events-none px-6 font-sans">
         <button 
           onClick={() => setIsOpen(true)}
-          className="pointer-events-auto bg-black text-white h-14 px-8 rounded-full flex items-center gap-3 shadow-2xl hover:scale-105 transition-all active:scale-95"
-          style={{ fontFamily: '"Inter", sans-serif' }}
+          className="pointer-events-auto bg-white text-black h-16 px-10 rounded-2xl flex items-center gap-4 shadow-[0_20px_50px_rgba(0,0,0,0.3)] hover:scale-105 transition-all active:scale-95 group border border-white/10"
         >
-          <Plus size={18} strokeWidth={3} />
-          <span className="font-black text-[10px] uppercase tracking-[0.2em]">Ask a Question</span>
+          <div className="bg-black rounded-lg p-1.5 group-hover:rotate-90 transition-transform duration-300">
+            <Plus size={16} className="text-white" strokeWidth={3} />
+          </div>
+          <span className="font-bold text-sm tracking-tight uppercase tracking-widest">Ask a Question</span>
         </button>
       </div>
     )
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-6 bg-black/20 backdrop-blur-sm" style={{ fontFamily: '"Inter", sans-serif' }}>
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-500 font-sans">
       <div className="absolute inset-0" onClick={() => setIsOpen(false)} />
       
-      <div className="relative w-full max-w-lg bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-10 duration-300">
-        
-        <div className="flex items-center justify-between p-8 pb-4">
-          <h2 className="text-2xl font-bold tracking-tighter uppercase italic">
-            New Question
-          </h2>
+      <div className="relative w-full max-w-xl bg-[#0e0e0e] border-t sm:border border-white/10 rounded-t-[2.5rem] sm:rounded-[3rem] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-20 duration-500 ease-out">
+        {/* Mobile Grab Handle */}
+        <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto mt-4 sm:hidden" />
+
+        <div className="flex items-center justify-between p-10 pb-4">
+          <div className="flex items-center gap-3">
+             <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center">
+                <MessageCircle size={20} className="text-emerald-500" />
+             </div>
+             <h2 className="text-2xl font-bold text-white tracking-tight italic uppercase">New Question</h2>
+          </div>
           <button 
             type="button" 
             onClick={() => setIsOpen(false)}
-            className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-50 transition-colors"
+            className="w-10 h-10 rounded-full bg-zinc-900 flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
           >
             <X size={20} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-8 pt-2 space-y-6">
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-4">Identity</label>
-            <input 
-              type="text" 
-              placeholder="Your Name" 
-              className="w-full border border-gray-100 bg-gray-50/50 px-5 py-4 outline-none focus:border-black focus:bg-white transition-all text-sm font-medium placeholder:text-gray-300 rounded-2xl"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-          </div>
+        <form onSubmit={handleSubmit} className="p-10 pt-2 space-y-6">
+          <div className="grid grid-cols-1 gap-5">
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Identity</label>
+              <input 
+                type="text" 
+                placeholder="Your name or nickname" 
+                className="w-full bg-zinc-900/50 border border-white/5 px-6 py-4 outline-none focus:border-emerald-500/50 focus:bg-zinc-900 transition-all text-white placeholder:text-zinc-700 rounded-2xl"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </div>
 
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-4">Question</label>
-            <textarea 
-              placeholder="What's on your mind?"
-              className="w-full border border-gray-100 bg-gray-50/50 px-5 py-4 outline-none focus:border-black focus:bg-white transition-all text-sm font-medium placeholder:text-gray-300 rounded-2xl resize-none min-h-[140px]"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              required
-            />
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Your Question</label>
+              <textarea 
+                placeholder="What would you like to ask?"
+                className="w-full bg-zinc-900/50 border border-white/5 px-6 py-4 outline-none focus:border-emerald-500/50 focus:bg-zinc-900 transition-all text-white placeholder:text-zinc-700 rounded-2xl resize-none min-h-[160px] leading-relaxed"
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                required
+              />
+            </div>
           </div>
 
           <button 
             type="submit"
             disabled={!text.trim() || !name.trim() || loading} 
-            className="w-full bg-black text-white h-16 rounded-2xl font-bold text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-zinc-800 disabled:opacity-50 transition-all active:scale-[0.98]"
+            className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white h-16 rounded-[1.5rem] font-bold text-sm flex items-center justify-center gap-3 transition-all active:scale-[0.98] shadow-lg shadow-emerald-900/10"
           >
             {loading ? (
-              <Loader2 size={18} className="animate-spin" />
+              <Loader2 size={20} className="animate-spin" />
             ) : (
               <>
-                <span>Send to Room</span>
-                <Send size={14} strokeWidth={3} />
+                <span className="uppercase tracking-widest">Send to Stage</span>
+                <Send size={16} strokeWidth={2.5} />
               </>
             )}
           </button>

@@ -1,174 +1,171 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 import { supabase } from '@/lib/supabase';
-import { getQuestions } from '@/lib/actions';
 import confetti from 'canvas-confetti';
-import { MessageCircle, CheckCircle2 } from 'lucide-react';
+import { Globe, CheckCircle2, Users, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
-export default function ProjectorPage() {
+export default function ProjectorPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = use(params);
   const [questions, setQuestions] = useState<any[]>([]);
+  const [roomData, setRoomData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [lastAnsweredId, setLastAnsweredId] = useState<string | null>(null);
 
   const triggerBoom = () => {
     const duration = 3 * 1000;
     const animationEnd = Date.now() + duration;
-    const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+    const defaults = { startVelocity: 45, spread: 360, ticks: 100, zIndex: 50 };
     const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
 
     const interval: any = setInterval(function() {
       const timeLeft = animationEnd - Date.now();
       if (timeLeft <= 0) return clearInterval(interval);
-      const particleCount = 50 * (timeLeft / duration);
+      const particleCount = 80 * (timeLeft / duration);
       confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } });
       confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } });
     }, 250);
   };
 
-  useEffect(() => {
-    async function initProjector() {
-      const data = await getQuestions();
-      setQuestions(data || []);
-      setLoading(false);
-    }
+  const fetchRoomAndQuestions = async () => {
+    const { data: room } = await supabase
+      .from('rooms')
+      .select('*')
+      .eq('slug', slug)
+      .single();
     
-    initProjector();
+    if (room) {
+      setRoomData(room);
+      const { data: qs } = await supabase
+        .from('questions')
+        .select('*')
+        .eq('room_id', room.id)
+        .order('created_at', { ascending: true });
+      
+      setQuestions(qs || []);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchRoomAndQuestions();
 
     const channel = supabase
-      .channel('projector_feed')
+      .channel(`projector_${slug}`)
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'questions' }, 
         async (payload: any) => {
           if (payload.eventType === 'UPDATE' && payload.new.status === 'answered') {
             setLastAnsweredId(payload.new.id);
             triggerBoom();
-            setTimeout(() => setLastAnsweredId(null), 20000);
+            setTimeout(() => setLastAnsweredId(null), 15000);
           }
-
-          const freshData = await getQuestions();
-          setQuestions(freshData || []);
+          // Refresh data on any change
+          fetchRoomAndQuestions();
         }
       )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [slug]);
 
+  const activeQuestions = questions.filter(q => q.status === 'pending');
+  
+  // Logic: Show the "Just Answered" one if it exists, else the first pending one, else the first answered one.
   const displayQuestion = lastAnsweredId 
     ? questions.find(q => q.id === lastAnsweredId)
-    : questions
-        .filter(q => q.status === 'pending')
-        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0];
+    : questions.find(q => q.status === 'answered') || activeQuestions[0];
 
   return (
-    <main className="h-screen bg-gradient-to-br from-gray-900 via-gray-950 to-black text-white overflow-hidden flex flex-col" style={{ fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", sans-serif' }}>
+    <main className="h-screen bg-[#050505] text-white overflow-hidden flex flex-col font-sans selection:bg-white/10 relative">
       
-      {/* HEADER */}
-      <div className="border-b border-white/10 backdrop-blur-sm bg-white/5">
-        <div className="max-w-[1800px] mx-auto px-16 py-8 flex justify-between items-center">
-          <div className="flex items-center gap-6">
-            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
-            <div>
-              <h1 className="text-4xl font-semibold tracking-tight" style={{ letterSpacing: '-0.05em' }}>
-                {lastAnsweredId ? 'Live Answer' : 'Question Queue'}
-              </h1>
-              <p className="text-gray-400 text-sm mt-1">Real-time display</p>
+      {/* TIGHT HEADER */}
+      <div className="z-10 border-b border-white/5 bg-black/50 backdrop-blur-xl">
+        <div className="max-w-[1800px] mx-auto px-12 py-10 flex justify-between items-end">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 mb-2">
+               <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.4)]" />
+               <span className="text-[10px] font-black uppercase tracking-[0.4em] text-emerald-500">Live Feedback Stream</span>
             </div>
+            <h1 className="text-5xl font-black tracking-tighter uppercase italic">
+              {roomData?.name || 'Loading Session...'}
+            </h1>
           </div>
 
-          <div className="text-right">
-            <p className="text-gray-400 text-sm mb-1">Questions Waiting</p>
-            <p className="text-6xl font-semibold" style={{ letterSpacing: '-0.05em' }}>
-              {questions.filter(q => q.status === 'pending').length}
-            </p>
+          <div className="flex gap-16">
+            <div className="text-right">
+              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Join the conversation</p>
+              <p className="text-3xl font-bold tracking-tight text-white italic">asktc.com/{slug}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Queue</p>
+              <p className="text-5xl font-black text-white tabular-nums">{activeQuestions.length}</p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* MAIN DISPLAY */}
-      <div className="flex-1 flex items-center justify-center p-16">
-        {loading ? (
-          <div className="text-center">
-            <div className="w-16 h-16 border-4 border-gray-800 border-t-white rounded-full animate-spin mx-auto mb-6" />
-            <p className="text-gray-500 text-xl font-medium">Loading questions...</p>
-          </div>
-        ) : displayQuestion ? (
-          <div className="max-w-[1600px] w-full space-y-12 animate-in fade-in zoom-in-95 duration-500">
-            
-            {/* GUEST INFO */}
-            <div className="flex items-center justify-center gap-4 mb-8">
-              <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center text-4xl backdrop-blur-sm border border-white/20">
-                {displayQuestion.profiles?.emoji_key || "👤"}
+      {/* CENTER STAGE */}
+      <div className="flex-1 flex items-center justify-center px-12 relative overflow-hidden">
+        {/* Subtle background glow */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-emerald-500/5 blur-[120px] rounded-full pointer-events-none" />
+
+        <AnimatePresence mode="wait">
+          {loading ? (
+             <motion.div key="loader" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+               <Loader2 className="animate-spin text-zinc-800" size={48} />
+             </motion.div>
+          ) : displayQuestion ? (
+            <motion.div 
+              key={displayQuestion.id}
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 1.1, y: -20 }}
+              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+              className="max-w-6xl w-full flex flex-col items-center z-10"
+            >
+              <div className={`mb-12 px-6 py-2 rounded-full border flex items-center gap-3 transition-all duration-700 ${
+                lastAnsweredId ? 'bg-emerald-500/10 border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.1)]' : 'bg-white/5 border-white/10'
+              }`}>
+                {lastAnsweredId ? <CheckCircle2 size={16} className="text-emerald-500" /> : <Users size={16} className="text-zinc-500" />}
+                <span className={`text-[10px] font-black uppercase tracking-widest ${lastAnsweredId ? 'text-emerald-500' : 'text-zinc-500'}`}>
+                  {lastAnsweredId ? 'Just Answered' : 'Featured Question'}
+                </span>
               </div>
-              <div className="text-left">
-                <p className="text-gray-400 text-sm mb-1">Asked by</p>
-                <p className="text-3xl font-semibold" style={{ letterSpacing: '-0.02em' }}>
-                  {displayQuestion.profiles?.full_name || displayQuestion.guest_name || "Anonymous"}
-                </p>
-              </div>
-            </div>
-            
-            {/* QUESTION */}
-            <div className="text-center">
-              <h2 className={`font-semibold text-white leading-tight transition-all duration-500 ${
-                lastAnsweredId ? 'text-6xl md:text-7xl' : 'text-7xl md:text-8xl'
-              }`} style={{ letterSpacing: '-0.05em' }}>
-                {displayQuestion.content}
+
+              <h2 className="text-center text-7xl md:text-8xl lg:text-9xl font-black tracking-tighter leading-[0.85] uppercase italic drop-shadow-2xl">
+                "{displayQuestion.content}"
               </h2>
-            </div>
-
-            {/* ANSWER */}
-            {lastAnsweredId && displayQuestion.answers && displayQuestion.answers.length > 0 && (
-              <div className="bg-green-500/10 border-2 border-green-500/30 rounded-3xl p-12 animate-in slide-in-from-bottom-10 duration-700 backdrop-blur-sm">
-                <div className="flex items-center gap-3 mb-8">
-                  <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center">
-                    <CheckCircle2 size={24} className="text-green-500" />
-                  </div>
-                  <div>
-                    <p className="text-green-500 font-semibold text-xl">Answer</p>
-                    <p className="text-gray-400 text-sm">
-                      from {displayQuestion.answers[0].profiles?.full_name || "Moderator"}
-                    </p>
-                  </div>
-                </div>
-                <p className="text-5xl md:text-6xl font-medium text-white leading-tight" style={{ letterSpacing: '-0.02em' }}>
-                  {displayQuestion.answers[0].answer_body}
-                </p>
+              
+              <div className="mt-16 flex items-center gap-4 opacity-50">
+                 <span className="h-px w-12 bg-zinc-800" />
+                 <span className="text-xl font-bold uppercase tracking-[0.3em] text-zinc-400">
+                   {displayQuestion.guest_name || 'Anonymous'}
+                 </span>
+                 <span className="h-px w-12 bg-zinc-800" />
               </div>
-            )}
-          </div>
-        ) : (
-          <div className="text-center opacity-40">
-            <div className="w-32 h-32 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-8">
-              <MessageCircle size={48} className="text-gray-600" />
-            </div>
-            <p className="text-4xl font-semibold text-gray-600" style={{ letterSpacing: '-0.02em' }}>
-              Waiting for questions...
-            </p>
-          </div>
-        )}
+            </motion.div>
+          ) : (
+            <motion.div 
+              key="empty" 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }}
+              className="text-center space-y-6"
+            >
+               <Globe size={60} className="mx-auto text-zinc-900 animate-[spin_10s_linear_infinite] opacity-20" />
+               <p className="text-xl font-bold uppercase tracking-[0.4em] text-zinc-800 italic">Stage is quiet...</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      {/* FOOTER */}
-      <div className="border-t border-white/10 backdrop-blur-sm bg-white/5">
-        <div className="max-w-[1800px] mx-auto px-16 py-8 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center">
-              <MessageCircle size={24} className="text-black" />
-            </div>
-            <div>
-              <p className="text-2xl font-semibold" style={{ letterSpacing: '-0.02em' }}>asktc</p>
-              <p className="text-gray-400 text-sm">Live Q&A Display</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            <p className="text-gray-400 text-sm">System Active</p>
-          </div>
-        </div>
+      {/* MINIMAL FOOTER */}
+      <div className="px-12 py-10 flex justify-between items-center border-t border-white/5 opacity-30 z-10">
+        <p className="text-[10px] font-black uppercase tracking-widest font-mono">asktc.com // session_id: {roomData?.id?.slice(0,8)}</p>
+        <p className="text-[10px] font-black uppercase tracking-widest">© 2026 ENGAGEMENT ENGINE</p>
       </div>
+
     </main>
   );
 }
