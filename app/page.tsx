@@ -198,6 +198,11 @@ export default function LandingPage() {
         <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-gray-800 italic">
           asktc • simple q&a • 2026
         </p>
+
+
+
+
+        
       </footer>
     </main>
   )
