@@ -14,7 +14,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "ASK THE CHURCH",
   description: "The professional standard for ecclesiastical dialogue.",
-  metadataBase: new URL('https://askthechurch.com'),
+  metadataBase: new URL('https://asktc.vercel.app'),
   alternates: {
     canonical: '/',
   },

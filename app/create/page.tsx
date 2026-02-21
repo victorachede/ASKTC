@@ -43,7 +43,7 @@ export default function CreateRoom() {
     <main className="min-h-screen bg-[#050505] text-white selection:bg-white/20">
       {/* MINIMAL NAV */}
       <nav className="h-12 border-b border-white/5 flex items-center px-4 bg-black/50 backdrop-blur-xl">
-        <Link href="/leader" className="flex items-center gap-2 text-zinc-500 hover:text-zinc-200 transition-colors">
+        <Link href="/" className="flex items-center gap-2 text-zinc-500 hover:text-zinc-200 transition-colors">
           <ArrowLeft size={14} />
           <span className="text-[10px] font-black uppercase tracking-widest">Dashboard</span>
         </Link>
