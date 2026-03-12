@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Send, Loader2, MessageSquare } from 'lucide-react';
+import { Send, Loader2, MessageSquare, Monitor, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import toast from 'react-hot-toast';
 
@@ -16,6 +16,12 @@ export default function AnswerBox({
 }) {
   const [answer, setAnswer] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isOnProjector, setIsOnProjector] = useState(false);
+
+  // Font Stacks from Landing Page
+  const serif = "'Cormorant Garamond', serif";
+  const cond = "'Barlow Condensed', sans-serif";
+  const sans = "'Barlow', sans-serif";
 
   const submitAnswer = async () => {
     if (!answer.trim()) {
@@ -32,6 +38,7 @@ export default function AnswerBox({
     
     if (leaderId) insertData.leader_id = leaderId;
     
+    // 1. Save the Answer
     const { error: answerError } = await supabase
       .from('answers')
       .insert([insertData]);
@@ -42,16 +49,20 @@ export default function AnswerBox({
       return;
     }
 
+    // 2. Update Question Status and Projector Visibility
     const { error: statusError } = await supabase
       .from('questions')
-      .update({ status: 'answered' })
+      .update({ 
+        status: 'answered',
+        is_projected: isOnProjector // Feature: Send to projector
+      })
       .eq('id', questionId);
 
     if (statusError) {
       toast.error("Failed to update status.");
       setLoading(false);
     } else {
-      toast.success("Answer shared!");
+      toast.success(isOnProjector ? "Answered and Projected!" : "Answer shared!");
       setAnswer('');
       setLoading(false);
       if (onComplete) onComplete();
@@ -59,16 +70,41 @@ export default function AnswerBox({
   };
 
   return (
-    <div className="bg-[#111] rounded-2xl border border-white/5 p-6 shadow-sm overflow-hidden">
-      <div className="flex items-center gap-2 mb-4 text-zinc-500">
-        <MessageSquare size={16} />
-        <span className="text-xs font-medium tracking-wide uppercase">Your Response</span>
+    <div style={{ background: '#0a0a0a', border: '1px solid rgba(245,240,232,0.05)', fontFamily: sans }} className="rounded-2xl p-6 shadow-2xl overflow-hidden">
+      
+      {/* Header */}
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-2 text-zinc-500">
+          <MessageSquare size={14} color="#d4ff4e" />
+          <span style={{ fontFamily: cond }} className="text-[10px] font-bold tracking-[0.2em] uppercase text-zinc-400">Moderator Response</span>
+        </div>
+        
+        {/* Projector Toggle Feature */}
+        <button 
+          onClick={() => setIsOnProjector(!isOnProjector)}
+          style={{ 
+            background: isOnProjector ? 'rgba(212,255,78,0.1)' : 'transparent',
+            border: `1px solid ${isOnProjector ? '#d4ff4e' : 'rgba(245,240,232,0.1)'}`,
+            transition: 'all 0.2s ease'
+          }}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg group"
+        >
+          <Monitor size={12} color={isOnProjector ? '#d4ff4e' : '#555'} />
+          <span style={{ fontFamily: cond, color: isOnProjector ? '#d4ff4e' : '#555' }} className="text-[9px] font-bold uppercase tracking-widest">
+            {isOnProjector ? 'On Projector' : 'Send to Projector'}
+          </span>
+        </button>
       </div>
 
-      <div className="relative group">
+      <div className="relative">
         <textarea 
-          className="w-full bg-[#18181b] border border-white/10 rounded-xl p-5 text-base leading-relaxed outline-none focus:border-emerald-500/40 focus:ring-4 focus:ring-emerald-500/5 transition-all resize-none min-h-[140px] text-zinc-200 placeholder:text-zinc-600"
-          placeholder="Share your thoughts here..."
+          style={{ 
+            background: 'rgba(245,240,232,0.02)', 
+            border: '1px solid rgba(245,240,232,0.06)',
+            fontFamily: serif
+          }}
+          className="w-full rounded-xl p-5 text-lg italic font-light leading-relaxed outline-none focus:border-[#d4ff4e]/30 transition-all resize-none min-h-[160px] text-zinc-200 placeholder:text-zinc-800"
+          placeholder="Type the official response..."
           value={answer}
           onChange={(e) => setAnswer(e.target.value)}
           onKeyDown={(e) => {
@@ -78,32 +114,34 @@ export default function AnswerBox({
           }}
         />
         
-        {/* Subtle helper text */}
-        <div className="mt-3 flex items-center justify-between px-1">
-          <p className="text-[11px] text-zinc-500 font-medium">
-            Press <kbd className="bg-zinc-800 px-1.5 py-0.5 rounded border border-white/5 font-sans">CMD + Enter</kbd> to send
+        <div className="mt-4 flex items-center justify-between px-1">
+          <p style={{ color: 'rgba(245,240,232,0.2)' }} className="text-[10px] font-medium uppercase tracking-tight">
+            Press <kbd className="bg-white/5 px-1.5 py-0.5 rounded border border-white/5 font-sans text-zinc-400">CMD + Enter</kbd> to broadcast
           </p>
-          <span className="text-[11px] text-zinc-600 tabular-nums">
-            {answer.length} characters
+          <span style={{ fontFamily: cond, color: 'rgba(245,240,232,0.1)' }} className="text-[10px] font-bold tabular-nums tracking-widest">
+            {answer.length} CHARS
           </span>
         </div>
       </div>
       
-      <div className="mt-6 flex justify-end">
+      <div className="mt-8 flex justify-end">
         <button 
           onClick={submitAnswer}
           disabled={loading || !answer.trim()}
-          className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white h-11 px-8 rounded-xl font-semibold text-sm flex items-center gap-2 transition-all active:scale-[0.98] shadow-lg shadow-emerald-900/10"
+          style={{ 
+            background: loading || !answer.trim() ? '#111' : '#d4ff4e',
+            color: loading || !answer.trim() ? '#444' : '#060606',
+            fontFamily: cond,
+            transition: 'all 0.2s'
+          }}
+          className="h-12 px-10 rounded-xl font-black text-xs uppercase tracking-[0.15em] flex items-center gap-2 active:scale-[0.96] shadow-xl"
         >
           {loading ? (
-            <>
-              <Loader2 size={16} className="animate-spin" />
-              <span>Sharing...</span>
-            </>
+            <Loader2 size={16} className="animate-spin" />
           ) : (
             <>
-              <span>Broadcast Answer</span>
-              <Send size={15} />
+              <span>Broadcast Response</span>
+              <Send size={14} strokeWidth={3} />
             </>
           )}
         </button>

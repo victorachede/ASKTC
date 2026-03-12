@@ -2,20 +2,17 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import {
-  Hash,
-  ChevronLeft,
-  MessageSquare,
-  Copy,
-  Check,
-  Zap,
-  CheckCircle2,
-  Heart,
-} from "lucide-react";
+import { ChevronLeft, MessageSquare, Copy, Check, Heart, CheckCircle2, Loader2 } from "lucide-react";
 import Link from "next/link";
 import QuestionInput from "@/components/QuestionInput";
 import { supabase } from "@/lib/supabase";
 import toast from "react-hot-toast";
+import { motion, AnimatePresence } from "framer-motion";
+
+const serif = "'Cormorant Garamond', serif"
+const cond = "'Barlow Condensed', sans-serif"
+const sans = "'Barlow', sans-serif"
+const fontUrl = 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800;900&display=swap'
 
 export default function RoomPage() {
   const params = useParams();
@@ -29,113 +26,55 @@ export default function RoomPage() {
 
   const fetchData = async () => {
     try {
-      // 1. Resolve Room ID from Slug
-      const { data: roomData } = await supabase
-        .from("rooms")
-        .select("id, name")
-        .eq("slug", slug)
-        .single();
-
+      const { data: roomData } = await supabase.from("rooms").select("id, name").eq("slug", slug).single();
       if (!roomData) return;
       setRoom(roomData);
 
-      // 2. Fetch questions with status 'answered' and include upvote counts
       const { data: questionsData } = await supabase
-        .from("questions")
-        .select("*, upvotes(count)")
-        .eq("room_id", roomData.id)
-        .eq("status", "answered")
+        .from("questions").select("*, upvotes(count)")
+        .eq("room_id", roomData.id).eq("status", "answered")
         .order("created_at", { ascending: false });
 
-      // 3. Fetch answers to link them
       const { data: answersData } = await supabase.from("answers").select("*");
 
       if (questionsData) {
-        const questionsWithAnswers = questionsData.map((q) => ({
+        setQuestions(questionsData.map(q => ({
           ...q,
-          answer_body:
-            answersData?.find((a) => a.question_id === q.id)?.answer_body ||
-            null,
-        }));
-        setQuestions(questionsWithAnswers);
+          answer_body: answersData?.find(a => a.question_id === q.id)?.answer_body || null,
+        })));
       }
     } catch (err) {
-      console.error("Fetch error:", err);
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (!slug) {
-      router.push("/");
-      return;
-    }
+    if (!slug) { router.push("/"); return; }
     fetchData();
 
-    const setupSubscription = async () => {
-      const { data: roomData } = await supabase
-        .from("rooms")
-        .select("id")
-        .eq("slug", slug)
-        .single();
+    const setup = async () => {
+      const { data: roomData } = await supabase.from("rooms").select("id").eq("slug", slug).single();
       if (!roomData) return;
-
-      const channel = supabase
-        .channel(`room-view-${slug}`)
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "questions",
-            filter: `room_id=eq.${roomData.id}`,
-          },
-          () => fetchData(),
-        )
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "upvotes",
-          },
-          () => fetchData(),
-        )
-        .on(
-          "postgres_changes",
-          {
-            event: "INSERT",
-            schema: "public",
-            table: "answers",
-          },
-          () => fetchData(),
-        )
+      return supabase.channel(`room-view-${slug}`)
+        .on("postgres_changes", { event: "*", schema: "public", table: "questions", filter: `room_id=eq.${roomData.id}` }, fetchData)
+        .on("postgres_changes", { event: "*", schema: "public", table: "upvotes" }, fetchData)
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "answers" }, fetchData)
         .subscribe();
-
-      return channel;
     };
 
-    const channelPromise = setupSubscription();
-    return () => {
-      channelPromise.then(
-        (channel) => channel && supabase.removeChannel(channel),
-      );
-    };
+    const ch = setup();
+    return () => { ch.then(c => c && supabase.removeChannel(c)); };
   }, [slug]);
 
   const handleUpvote = async (questionId: string) => {
-    const { error } = await supabase
-      .from("upvotes")
-      .insert([{ question_id: questionId }]);
-    if (error) {
-      toast.error("Signal already boosted");
-    } else {
-      toast.success("Signal boosted");
-    }
+    const { error } = await supabase.from("upvotes").insert([{ question_id: questionId }]);
+    if (error) toast.error("Already upvoted");
+    else toast.success("Upvoted");
   };
 
-  const copyCodeOnly = () => {
+  const copyCode = () => {
     navigator.clipboard.writeText(slug);
     setCopied(true);
     toast.success("Code copied");
@@ -145,153 +84,142 @@ export default function RoomPage() {
   if (!slug) return null;
 
   return (
-    <main className="min-h-screen bg-[#050505] text-zinc-400 selection:bg-emerald-500/30 font-sans antialiased">
+    <main style={{ minHeight: "100vh", background: "#060606", color: "#f5f0e8", fontFamily: sans, WebkitFontSmoothing: "antialiased" }}>
+      <style>{`
+        @import url('${fontUrl}');
+        * { box-sizing: border-box; }
+        .exit-link:hover { color: #f5f0e8 !important; }
+        .copy-btn:hover { color: #f5f0e8 !important; }
+        .upvote-btn:hover { border-color: rgba(212,255,78,0.3) !important; background: rgba(212,255,78,0.04) !important; }
+        .upvote-btn:hover .upvote-icon { color: #d4ff4e !important; }
+        .upvote-btn:hover .upvote-count { color: #d4ff4e !important; }
+        @keyframes pip { 0%,100%{opacity:1} 50%{opacity:0.3} }
+        .pip { animation: pip 2s ease infinite; }
+      `}</style>
+
+      {/* GRAIN */}
+      <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 999, opacity: 0.03, backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")` }} />
+
       {/* NAV */}
-      <nav className="sticky top-0 h-14 border-b border-white/5 bg-black/80 backdrop-blur-md z-50 flex items-center justify-between px-4">
-        <Link
-          href="/"
-          className="flex items-center gap-2 hover:text-white transition-colors group"
-        >
-          <ChevronLeft
-            size={16}
-            className="group-hover:-translate-x-0.5 transition-transform"
-          />
-          <span className="text-[10px] font-black uppercase tracking-[0.2em]">
-            Exit
-          </span>
+      <nav style={{ position: "sticky", top: 0, zIndex: 100, height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px", borderBottom: "1px solid rgba(245,240,232,0.05)", background: "rgba(6,6,6,0.92)", backdropFilter: "blur(24px)" }}>
+        <Link href="/" className="exit-link" style={{ display: "flex", alignItems: "center", gap: 6, color: "rgba(245,240,232,0.25)", textDecoration: "none", transition: "color 0.2s" }}>
+          <ChevronLeft size={14} />
+          <span style={{ fontFamily: cond, fontSize: 9, fontWeight: 800, letterSpacing: "0.25em", textTransform: "uppercase" }}>Exit</span>
         </Link>
 
-        <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/5">
-          <div className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-          <span className="text-[10px] font-black text-white uppercase tracking-widest">
-            {slug}
-          </span>
+        {/* CODE PILL */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 14px", background: "rgba(245,240,232,0.04)", border: "1px solid rgba(245,240,232,0.07)", borderRadius: 100 }}>
+          <span className="pip" style={{ width: 5, height: 5, borderRadius: "50%", background: "#3ecf8e", display: "block" }} />
+          <span style={{ fontFamily: cond, fontSize: 10, fontWeight: 800, letterSpacing: "0.3em", textTransform: "uppercase", color: "#f5f0e8" }}>{slug}</span>
         </div>
 
-        <button
-          onClick={copyCodeOnly}
-          className="p-2 hover:text-white transition-colors"
-        >
-          {copied ? (
-            <Check size={16} className="text-emerald-500" />
-          ) : (
-            <Copy size={16} />
-          )}
+        <button onClick={copyCode} className="copy-btn" style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(245,240,232,0.25)", transition: "color 0.2s", padding: 4 }}>
+          {copied ? <Check size={15} color="#3ecf8e" /> : <Copy size={15} />}
         </button>
       </nav>
 
-      <div className="max-w-2xl mx-auto px-6 pt-12 pb-40">
+      <div style={{ maxWidth: 640, margin: "0 auto", padding: "40px 20px 160px" }}>
+
         {/* HEADER */}
-        <header className="mb-12">
-          <div className="flex items-center gap-2 mb-2">
-            <Hash size={14} className="text-emerald-500" />
-            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600">
-              Active Stage
-            </span>
+        <motion.header initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+          style={{ marginBottom: 48 }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+            <div style={{ width: 1, height: 20, background: "rgba(212,255,78,0.4)" }} />
+            <span style={{ fontFamily: cond, fontSize: 9, fontWeight: 800, letterSpacing: "0.4em", textTransform: "uppercase", color: "rgba(245,240,232,0.3)" }}>Active Stage</span>
           </div>
-          <h1 className="text-4xl font-bold text-white tracking-tighter uppercase italic leading-none">
+          <h1 style={{ fontFamily: serif, fontSize: "clamp(2.2rem, 8vw, 3.2rem)", fontWeight: 300, fontStyle: "italic", lineHeight: 0.95, color: "#f5f0e8", marginBottom: 12 }}>
             {room?.name || slug}
           </h1>
-          <p className="text-sm text-zinc-500 mt-2 italic">
-            Intercepted signals and official responses.
+          <p style={{ fontFamily: sans, fontSize: 13, color: "rgba(245,240,232,0.22)", lineHeight: 1.6, fontWeight: 400 }}>
+            Answered questions from this session.
           </p>
-        </header>
+        </motion.header>
 
-        {/* FEED SECTION */}
-        <section className="space-y-8">
-          <div className="flex items-center justify-between border-b border-white/5 pb-4">
-            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">
-              Resolved Queries
-            </h2>
-            <span className="text-[10px] font-mono text-emerald-500">
-              {questions.length} Total
-            </span>
+        {/* SECTION LABEL */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 16, borderBottom: "1px solid rgba(245,240,232,0.05)", marginBottom: 32 }}>
+          <span style={{ fontFamily: cond, fontSize: 9, fontWeight: 800, letterSpacing: "0.35em", textTransform: "uppercase", color: "rgba(245,240,232,0.2)" }}>Resolved Questions</span>
+          <span style={{ fontFamily: cond, fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", color: "rgba(245,240,232,0.25)" }}>{questions.length} total</span>
+        </div>
+
+        {/* FEED */}
+        {loading ? (
+          <div style={{ padding: "80px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+            <Loader2 size={20} color="rgba(245,240,232,0.15)" style={{ animation: "spin 1s linear infinite" }} />
+            <span style={{ fontFamily: cond, fontSize: 9, fontWeight: 800, letterSpacing: "0.4em", textTransform: "uppercase", color: "rgba(245,240,232,0.1)" }}>Syncing</span>
           </div>
+        ) : questions.length === 0 ? (
+          <div style={{ padding: "80px 24px", textAlign: "center", border: "1px dashed rgba(245,240,232,0.06)", borderRadius: 16 }}>
+            <MessageSquare size={28} color="rgba(245,240,232,0.08)" style={{ margin: "0 auto 16px" }} />
+            <p style={{ fontFamily: cond, fontSize: 9, fontWeight: 800, letterSpacing: "0.35em", textTransform: "uppercase", color: "rgba(245,240,232,0.1)" }}>
+              No answers yet
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 36 }}>
+            <AnimatePresence>
+              {questions.map((q, i) => (
+                <motion.div key={q.id}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: i * 0.05 }}>
 
-          {loading ? (
-            <div className="py-20 flex flex-col items-center gap-4">
-              <Zap className="animate-pulse text-zinc-800" size={32} />
-              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-800">
-                Syncing Stream
-              </span>
-            </div>
-          ) : questions.length === 0 ? (
-            <div className="py-20 text-center border border-dashed border-white/5 rounded-3xl">
-              <MessageSquare size={32} className="mx-auto text-zinc-900 mb-4" />
-              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-700">
-                No signals found in this frequency
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-12">
-              {questions.map((q) => (
-                <div key={q.id} className="group relative">
-                  <div className="flex items-start gap-4 mb-4">
-                    {/* User Avatar Placeholder */}
-                    <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-white/10 flex items-center justify-center text-[10px] font-black text-white shrink-0 shadow-2xl">
+                  {/* QUESTION ROW */}
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 16 }}>
+                    {/* AVATAR */}
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: "#111", border: "1px solid rgba(245,240,232,0.07)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: cond, fontSize: 11, fontWeight: 900, color: "#f5f0e8", flexShrink: 0 }}>
                       {q.guest_name?.charAt(0).toUpperCase() || "A"}
                     </div>
 
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 10 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <span style={{ fontFamily: cond, fontSize: 9, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(245,240,232,0.3)" }}>
                             {q.guest_name || "Anonymous"}
                           </span>
-                          <span className="text-[9px] font-mono text-zinc-700">
-                            {new Date(q.created_at).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
+                          <span style={{ fontFamily: sans, fontSize: 10, color: "rgba(245,240,232,0.15)", fontWeight: 500 }}>
+                            {new Date(q.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                           </span>
                         </div>
 
-                        {/* UPVOTE ACTION */}
-                        <button
-                          onClick={() => handleUpvote(q.id)}
-                          className="flex items-center gap-1.5 px-2.5 py-1 bg-white/5 border border-white/5 rounded-lg hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all group/upvote"
-                        >
-                          <Heart
-                            size={10}
-                            className="text-zinc-600 group-hover/upvote:text-emerald-500 transition-colors"
-                          />
-                          <span className="text-[10px] font-mono font-bold text-zinc-600 group-hover/upvote:text-white">
+                        {/* UPVOTE */}
+                        <button onClick={() => handleUpvote(q.id)} className="upvote-btn"
+                          style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", background: "rgba(245,240,232,0.03)", border: "1px solid rgba(245,240,232,0.07)", borderRadius: 8, cursor: "pointer", transition: "border-color 0.2s, background 0.2s" }}>
+                          <Heart size={10} className="upvote-icon" style={{ color: "rgba(245,240,232,0.2)", transition: "color 0.2s" }} />
+                          <span className="upvote-count" style={{ fontFamily: cond, fontSize: 9, fontWeight: 700, color: "rgba(245,240,232,0.25)", transition: "color 0.2s" }}>
                             {q.upvotes?.[0]?.count || 0}
                           </span>
                         </button>
                       </div>
-                      <p className="text-lg font-medium text-zinc-200 tracking-tight leading-snug">
-                        {q.content}
+
+                      <p style={{ fontFamily: serif, fontSize: "clamp(1.1rem, 3vw, 1.3rem)", fontStyle: "italic", fontWeight: 300, lineHeight: 1.4, color: "#f5f0e8" }}>
+                        "{q.content}"
                       </p>
                     </div>
                   </div>
 
-                  {/* MODERATOR ANSWER BLOCK */}
+                  {/* ANSWER BLOCK */}
                   {q.answer_body && (
-                    <div className="ml-12 p-6 bg-[#0a0a0a] border border-emerald-500/10 rounded-2xl relative overflow-hidden shadow-2xl">
-                      <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500/20" />
-                      <div className="flex items-center gap-2 mb-3">
-                        <CheckCircle2 size={12} className="text-emerald-500" />
-                        <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500">
-                          Official Response
-                        </span>
+                    <div style={{ marginLeft: 46, padding: "20px 22px", background: "rgba(245,240,232,0.02)", border: "1px solid rgba(245,240,232,0.06)", borderLeft: "2px solid rgba(212,255,78,0.25)", borderRadius: "0 12px 12px 0", position: "relative" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                        <CheckCircle2 size={11} color="#d4ff4e" />
+                        <span style={{ fontFamily: cond, fontSize: 9, fontWeight: 800, letterSpacing: "0.25em", textTransform: "uppercase", color: "#d4ff4e" }}>Official Response</span>
                       </div>
-                      <p className="text-sm text-zinc-300 leading-relaxed font-medium">
+                      <p style={{ fontFamily: sans, fontSize: 14, color: "rgba(245,240,232,0.6)", lineHeight: 1.7, fontWeight: 400 }}>
                         {q.answer_body}
                       </p>
                     </div>
                   )}
-                </div>
+                </motion.div>
               ))}
-            </div>
-          )}
-        </section>
+            </AnimatePresence>
+          </div>
+        )}
       </div>
 
-      {/* STICKY INPUT BAR */}
-      <div className="fixed bottom-0 left-0 right-0 p-6 bg-linear-to-t from-black via-black/90 to-transparent z-40">
-        <div className="max-w-2xl mx-auto">
-          <QuestionInput/>
+      {/* STICKY INPUT */}
+      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 40, padding: "24px 20px", background: "linear-gradient(to top, #060606 60%, transparent)" }}>
+        <div style={{ maxWidth: 640, margin: "0 auto" }}>
+          <QuestionInput />
         </div>
       </div>
     </main>

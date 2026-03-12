@@ -2,9 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Archive, CheckCircle, User, MessageCircle, ChevronLeft, Loader2 } from 'lucide-react'
+import { CheckCircle, ChevronLeft, Loader2, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
+import { motion, AnimatePresence } from 'framer-motion'
+
+const serif = "'Cormorant Garamond', serif"
+const cond = "'Barlow Condensed', sans-serif"
+const sans = "'Barlow', sans-serif"
+const fontUrl = 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800;900&display=swap'
 
 export default function BacklogPage() {
   const [questions, setQuestions] = useState<any[]>([])
@@ -13,13 +19,11 @@ export default function BacklogPage() {
 
   const fetchBacklog = async () => {
     setLoading(true)
-    // Fetch only questions that were NEVER answered on stage
     const { data } = await supabase
       .from('questions')
       .select('*, rooms(name)')
-      .eq('status', 'pending') 
+      .eq('status', 'pending')
       .order('created_at', { ascending: false })
-    
     setQuestions(data || [])
     setLoading(false)
   }
@@ -27,81 +31,147 @@ export default function BacklogPage() {
   useEffect(() => { fetchBacklog() }, [])
 
   const claimQuestion = async (qId: string) => {
-    if (!leaderName) return toast.error("Enter your name to claim this signal")
-
+    if (!leaderName.trim()) return toast.error('Enter your name first')
     const { error } = await supabase
       .from('questions')
-      .update({ 
-        picked_by: leaderName,
-        status: 'answered' // Move it out of backlog
-      })
+      .update({ picked_by: leaderName, status: 'answered' })
       .eq('id', qId)
-
-    if (error) toast.error("Claim failed")
-    else {
-      toast.success("Signal Claimed")
-      fetchBacklog()
-    }
+    if (error) toast.error('Claim failed')
+    else { toast.success('Question claimed'); fetchBacklog() }
   }
 
   return (
-    <main className="min-h-screen bg-[#050505] text-white p-8">
-      <header className="max-w-5xl mx-auto mb-12 flex justify-between items-end">
-        <div>
-          <Link href="/leader" className="text-zinc-500 hover:text-white flex items-center gap-2 mb-4 text-[10px] font-black uppercase tracking-widest transition-all">
-            <ChevronLeft size={14} /> Back to Command
-          </Link>
-          <h1 className="text-5xl font-black italic uppercase tracking-tighter">The Backlog</h1>
-          <p className="text-zinc-500 text-xs mt-2 uppercase tracking-widest font-bold">Unanswered signals from all sessions</p>
-        </div>
+    <main style={{ minHeight: '100vh', background: '#060606', color: '#f5f0e8', fontFamily: sans, WebkitFontSmoothing: 'antialiased' }}>
+      <style>{`
+        @import url('${fontUrl}');
+        * { box-sizing: border-box; }
+        ::placeholder { color: rgba(245,240,232,0.08) !important; }
+        .back-link:hover { color: #f5f0e8 !important; }
+        .name-input:focus { border-color: rgba(212,255,78,0.35) !important; background: rgba(212,255,78,0.02) !important; }
+        .q-card:hover { border-color: rgba(245,240,232,0.1) !important; }
+        .claim-btn:hover { background: #e8ff6a !important; }
+        .claim-btn:active { transform: scale(0.97); }
+      `}</style>
 
-        <div className="flex flex-col items-end gap-2">
-            <span className="text-[10px] font-black uppercase text-zinc-600">Claiming as:</span>
-            <input 
-                type="text" 
-                placeholder="YOUR NAME..." 
-                value={leaderName}
-                onChange={(e) => setLeaderName(e.target.value)}
-                className="bg-zinc-900 border border-white/10 rounded-lg px-4 py-2 text-sm font-bold outline-none focus:border-emerald-500 transition-all"
-            />
-        </div>
-      </header>
+      {/* GRAIN */}
+      <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 999, opacity: 0.03, backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")` }} />
 
-      <div className="max-w-5xl mx-auto space-y-4">
-        {loading ? (
-            <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-emerald-500" /></div>
-        ) : questions.length === 0 ? (
-            <div className="py-32 text-center border border-dashed border-white/5 rounded-[3rem]">
-                <p className="text-zinc-800 font-black uppercase tracking-widest">No signals left behind.</p>
+      {/* NAV */}
+      <nav style={{ position: 'sticky', top: 0, zIndex: 100, height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', borderBottom: '1px solid rgba(245,240,232,0.04)', background: 'rgba(6,6,6,0.92)', backdropFilter: 'blur(24px)' }}>
+        <Link href="/leader" className="back-link" style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'rgba(245,240,232,0.25)', textDecoration: 'none', transition: 'color 0.2s' }}>
+          <ChevronLeft size={14} />
+          <span style={{ fontFamily: cond, fontSize: 10, fontWeight: 800, letterSpacing: '0.25em', textTransform: 'uppercase' }}>Command</span>
+        </Link>
+        <span style={{ fontFamily: cond, fontSize: 9, fontWeight: 800, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.2)' }}>
+          Backlog — {questions.length} signal{questions.length !== 1 ? 's' : ''}
+        </span>
+      </nav>
+
+      <div style={{ maxWidth: 860, margin: '0 auto', padding: '56px 24px 80px' }}>
+
+        {/* HEADER */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+          style={{ marginBottom: 48, display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 24 }}
+        >
+          <div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <div style={{ width: 1, height: 20, background: 'rgba(212,255,78,0.4)' }} />
+              <span style={{ fontFamily: cond, fontSize: 9, fontWeight: 800, letterSpacing: '0.4em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.3)' }}>Unanswered Signals</span>
             </div>
-        ) : questions.map(q => (
-          <div key={q.id} className="bg-[#0c0c0c] border border-white/5 rounded-3xl p-8 flex justify-between items-center group hover:border-emerald-500/20 transition-all">
-            <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                    <span className="text-[10px] font-black bg-zinc-900 px-3 py-1 rounded-full text-zinc-500 uppercase tracking-widest border border-white/5">
-                        {q.rooms?.name || 'Unknown Room'}
-                    </span>
-                    <span className="text-[10px] font-bold text-zinc-700 uppercase italic">From: {q.guest_name}</span>
-                </div>
-                <h2 className="text-2xl font-bold italic">"{q.content}"</h2>
-                
-                {q.picked_by && (
-                    <div className="flex items-center gap-2 text-emerald-500 text-[10px] font-black uppercase tracking-widest">
-                        <CheckCircle size={12} /> Claimed by {q.picked_by}
-                    </div>
-                )}
-            </div>
-
-            {!q.picked_by && (
-                <button 
-                    onClick={() => claimQuestion(q.id)}
-                    className="opacity-0 group-hover:opacity-100 bg-white text-black px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-500 transition-all translate-x-4 group-hover:translate-x-0"
-                >
-                    Claim Question
-                </button>
-            )}
+            <h1 style={{ fontFamily: serif, fontSize: 'clamp(2.4rem, 8vw, 3.8rem)', fontWeight: 300, lineHeight: 0.92, color: '#f5f0e8' }}>
+              The <em style={{ fontStyle: 'italic', color: '#d4ff4e' }}>Backlog.</em>
+            </h1>
           </div>
-        ))}
+
+          {/* CLAIMER INPUT */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <span style={{ fontFamily: cond, fontSize: 9, fontWeight: 800, letterSpacing: '0.35em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.25)' }}>Claiming as</span>
+            <input
+              type="text"
+              placeholder="Your name"
+              value={leaderName}
+              onChange={e => setLeaderName(e.target.value)}
+              className="name-input"
+              style={{ background: 'rgba(245,240,232,0.03)', border: '1px solid rgba(245,240,232,0.08)', borderRadius: 10, padding: '10px 16px', outline: 'none', fontFamily: sans, fontSize: 13, fontWeight: 500, color: '#f5f0e8', width: 200, transition: 'border-color 0.25s, background 0.25s' }}
+            />
+          </div>
+        </motion.div>
+
+        {/* LIST */}
+        {loading ? (
+          <div style={{ padding: '80px 0', display: 'flex', justifyContent: 'center' }}>
+            <Loader2 size={24} color="rgba(245,240,232,0.2)" style={{ animation: 'spin 1s linear infinite' }} />
+          </div>
+        ) : questions.length === 0 ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            style={{ padding: '80px 24px', textAlign: 'center', border: '1px dashed rgba(245,240,232,0.06)', borderRadius: 16 }}
+          >
+            <p style={{ fontFamily: cond, fontSize: 11, fontWeight: 800, letterSpacing: '0.4em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.1)' }}>
+              No signals left behind
+            </p>
+          </motion.div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <AnimatePresence>
+              {questions.map((q, i) => (
+                <motion.div
+                  key={q.id}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: i * 0.04 }}
+                  className="q-card"
+                  style={{ background: '#0c0c0c', border: '1px solid rgba(245,240,232,0.05)', borderRadius: 16, padding: '24px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, transition: 'border-color 0.2s' }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {/* ROOM + ASKER */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                      <span style={{ fontFamily: cond, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.25)', background: 'rgba(245,240,232,0.04)', border: '1px solid rgba(245,240,232,0.07)', borderRadius: 6, padding: '3px 10px' }}>
+                        {q.rooms?.name || 'Unknown Room'}
+                      </span>
+                      {q.guest_name && (
+                        <span style={{ fontFamily: sans, fontSize: 10, color: 'rgba(245,240,232,0.2)', fontWeight: 500 }}>
+                          — {q.guest_name}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* QUESTION */}
+                    <p style={{ fontFamily: serif, fontSize: 'clamp(1.1rem, 3vw, 1.4rem)', fontStyle: 'italic', fontWeight: 300, lineHeight: 1.35, color: '#f5f0e8' }}>
+                      "{q.content}"
+                    </p>
+
+                    {/* CLAIMED */}
+                    {q.picked_by && (
+                      <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <CheckCircle size={11} color="#3ecf8e" />
+                        <span style={{ fontFamily: cond, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#3ecf8e' }}>
+                          Claimed by {q.picked_by}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* CLAIM BTN */}
+                  {!q.picked_by && (
+                    <button
+                      onClick={() => claimQuestion(q.id)}
+                      className="claim-btn"
+                      style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', background: '#d4ff4e', color: '#060606', border: 'none', borderRadius: 10, fontFamily: cond, fontSize: 10, fontWeight: 900, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer', transition: 'background 0.2s, transform 0.1s', whiteSpace: 'nowrap' }}
+                    >
+                      Claim <ArrowRight size={11} />
+                    </button>
+                  )}
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
       </div>
     </main>
   )

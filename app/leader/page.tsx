@@ -2,54 +2,40 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { 
-  Plus, 
-  MessageSquare, 
-  ArrowUpRight, 
-  Search,
-  Layout,
-  Trash2,
-  ChevronLeft,
-  Archive,
-  Loader2
-} from 'lucide-react'
+import { Plus, MessageSquare, ArrowUpRight, Search, Trash2, ChevronLeft, Archive, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
+import { motion, AnimatePresence } from 'framer-motion'
+
+const serif = "'Cormorant Garamond', serif"
+const cond = "'Barlow Condensed', sans-serif"
+const sans = "'Barlow', sans-serif"
+const fontUrl = 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800;900&display=swap'
+
+const timeAgo = (date: string) => {
+  const s = Math.floor((Date.now() - new Date(date).getTime()) / 1000)
+  if (s < 60) return 'Just now'
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  return new Date(date).toLocaleDateString()
+}
 
 export default function LeaderDashboard() {
   const [rooms, setRooms] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [search, setSearch] = useState('')
 
   const fetchRooms = async () => {
     try {
       setLoading(true)
-      
-      // 1. Fetch Rooms ONLY (Flat select)
-      const { data: roomsData, error: roomsError } = await supabase
-        .from('rooms')
-        .select('*')
-        .order('created_at', { ascending: false })
-      
+      const { data: roomsData, error: roomsError } = await supabase.from('rooms').select('*').order('created_at', { ascending: false })
       if (roomsError) throw roomsError
-
-      // 2. Fetch Questions separately (to count manually)
-      const { data: qData, error: qError } = await supabase
-        .from('questions')
-        .select('room_id')
-
-      if (qError) throw qError
-
-      // 3. Map the counts locally to bypass the "relationship" error
-      const normalizedRooms = (roomsData || []).map(room => ({
-        ...room,
-        qCount: (qData || []).filter(q => q.room_id === room.id).length
-      }))
-
-      setRooms(normalizedRooms)
-    } catch (error: any) {
-      console.error('Fetch error:', error.message)
-      toast.error("Schema sync failed: check console")
+      const { data: qData } = await supabase.from('questions').select('room_id')
+      setRooms((roomsData || []).map(r => ({ ...r, qCount: (qData || []).filter(q => q.room_id === r.id).length })))
+    } catch (e: any) {
+      toast.error('Failed to load sessions')
     } finally {
       setLoading(false)
     }
@@ -57,159 +43,176 @@ export default function LeaderDashboard() {
 
   useEffect(() => {
     fetchRooms()
-
-    // Real-time listener: refresh when questions are added anywhere
-    const channel = supabase
-      .channel('dashboard_updates')
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'questions' }, 
-        () => fetchRooms()
-      )
+    const channel = supabase.channel('dashboard_updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'questions' }, fetchRooms)
       .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
+    return () => { supabase.removeChannel(channel) }
   }, [])
 
   const deleteRoom = async (id: string) => {
-    if (!confirm("This will permanently delete this session and all its questions.")) return;
-    
-    const { error } = await supabase.from('rooms').delete().eq('id', id);
-    if (error) {
-      toast.error("Delete failed");
-    } else {
-      toast.success("Session terminated");
-      fetchRooms();
-    }
+    if (!confirm('This will permanently delete this session and all its questions.')) return
+    const { error } = await supabase.from('rooms').delete().eq('id', id)
+    if (error) toast.error('Delete failed')
+    else { toast.success('Session terminated'); fetchRooms() }
   }
 
-  const timeAgo = (date: string) => {
-    const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
-    if (seconds < 60) return 'Just now';
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    return new Date(date).toLocaleDateString();
-  };
-
-  const filteredRooms = rooms.filter(r => 
-    r.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    r.slug?.toLowerCase().includes(searchQuery.toLowerCase())
+  const filtered = rooms.filter(r =>
+    r.name?.toLowerCase().includes(search.toLowerCase()) ||
+    r.slug?.toLowerCase().includes(search.toLowerCase())
   )
 
   const totalQuestions = rooms.reduce((acc, r) => acc + (r.qCount || 0), 0)
 
   return (
-    <main className="min-h-screen bg-[#050505] text-zinc-400 font-sans selection:bg-emerald-500/30">
-      <nav className="h-16 border-b border-white/5 flex items-center justify-between px-6 bg-black/80 backdrop-blur-xl sticky top-0 z-50">
-        <div className="flex items-center gap-6">
-          <Link href="/" className="group flex items-center gap-2 text-zinc-500 hover:text-white transition-all">
-            <ChevronLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-            <span className="text-[11px] font-black uppercase tracking-[0.2em]">Exit</span>
+    <main style={{ minHeight: '100vh', background: '#060606', color: '#f5f0e8', fontFamily: sans, WebkitFontSmoothing: 'antialiased' }}>
+      <style>{`
+        @import url('${fontUrl}');
+        * { box-sizing: border-box; }
+        ::placeholder { color: rgba(245,240,232,0.08) !important; }
+        .exit-link:hover { color: #f5f0e8 !important; }
+        .backlog-link:hover { color: #d4ff4e !important; }
+        .search-wrap:focus-within .search-icon { color: #d4ff4e !important; }
+        .search-input:focus { border-color: rgba(212,255,78,0.25) !important; background: rgba(212,255,78,0.02) !important; }
+        .room-card:hover { border-color: rgba(245,240,232,0.1) !important; background: #0f0f0f !important; }
+        .open-btn:hover { background: #d4ff4e !important; color: #060606 !important; border-color: #d4ff4e !important; }
+        .del-btn:hover { color: rgba(255,80,80,0.8) !important; border-color: rgba(255,80,80,0.15) !important; background: rgba(255,80,80,0.04) !important; }
+        .new-btn:hover { background: #e8ff6a !important; }
+        .new-btn:active { transform: scale(0.97); }
+        @keyframes pip { 0%,100%{opacity:1} 50%{opacity:0.3} }
+        .pip { animation: pip 2s ease infinite; }
+      `}</style>
+
+      {/* GRAIN */}
+      <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 999, opacity: 0.03, backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")` }} />
+
+      {/* NAV */}
+      <nav style={{ position: 'sticky', top: 0, zIndex: 100, height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', borderBottom: '1px solid rgba(245,240,232,0.04)', background: 'rgba(6,6,6,0.92)', backdropFilter: 'blur(24px)', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+          <Link href="/" className="exit-link" style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'rgba(245,240,232,0.22)', textDecoration: 'none', transition: 'color 0.2s' }}>
+            <ChevronLeft size={14} />
+            <span style={{ fontFamily: cond, fontSize: 10, fontWeight: 800, letterSpacing: '0.25em', textTransform: 'uppercase' }}>Exit</span>
           </Link>
-          <div className="h-4 w-px bg-white/10" />
-          <div className="flex items-center gap-2.5">
-            <Layout size={16} className="text-emerald-500" />
-            <span className="text-[11px] font-black text-white uppercase tracking-[0.2em]">Command Center</span>
-          </div>
+          <div style={{ width: 1, height: 16, background: 'rgba(245,240,232,0.08)' }} />
+          <span style={{ fontFamily: cond, fontSize: 11, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#f5f0e8' }}>Command Center</span>
         </div>
-        
-        <Link href="/create" className="flex items-center gap-3 bg-white text-black px-5 py-2 rounded-xl hover:bg-zinc-200 transition-all active:scale-95">
-          <Plus size={16} strokeWidth={3} />
-          <span className="text-[11px] font-black uppercase tracking-widest">New Session</span>
-        </Link>
-        <Link href="/leader/backlog" className="flex items-center gap-2 text-zinc-500 hover:text-emerald-500 transition-all">
-  <Archive size={16} />
-  <span className="text-[10px] font-black uppercase tracking-widest">Unanswered Backlog</span>
-</Link>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <Link href="/leader/backlog" className="backlog-link" style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'rgba(245,240,232,0.25)', textDecoration: 'none', transition: 'color 0.2s' }}>
+            <Archive size={13} />
+            <span style={{ fontFamily: cond, fontSize: 9, fontWeight: 800, letterSpacing: '0.25em', textTransform: 'uppercase' }}>Backlog</span>
+          </Link>
+          <Link href="/create" className="new-btn" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 18px', background: '#d4ff4e', color: '#060606', borderRadius: 10, fontFamily: cond, fontSize: 10, fontWeight: 900, letterSpacing: '0.2em', textTransform: 'uppercase', textDecoration: 'none', transition: 'background 0.2s, transform 0.1s' }}>
+            <Plus size={13} strokeWidth={3} /> New Session
+          </Link>
+        </div>
       </nav>
 
-      <div className="max-w-6xl mx-auto px-6 py-12">
-        <header className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-12">
-          <div className="bg-[#0f0f0f] border border-white/5 p-6 rounded-2xl shadow-2xl">
-            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600 mb-2">Active Sessions</p>
-            <h2 className="text-4xl font-black text-white italic tracking-tighter">{rooms.length}</h2>
+      <div style={{ maxWidth: 960, margin: '0 auto', padding: '52px 24px 80px' }}>
+
+        {/* HEADER */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+          style={{ marginBottom: 48 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <div style={{ width: 1, height: 20, background: 'rgba(212,255,78,0.4)' }} />
+            <span style={{ fontFamily: cond, fontSize: 9, fontWeight: 800, letterSpacing: '0.4em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.3)' }}>Leader Dashboard</span>
           </div>
-          <div className="bg-[#0f0f0f] border border-white/5 p-6 rounded-2xl shadow-2xl">
-            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600 mb-2">Total Queries</p>
-            <h2 className="text-4xl font-black text-white italic tracking-tighter">{totalQuestions}</h2>
-          </div>
-          <div className="bg-[#0f0f0f] border border-white/5 p-6 rounded-2xl shadow-2xl flex items-center justify-between">
+          <h1 style={{ fontFamily: serif, fontSize: 'clamp(2.4rem, 8vw, 3.5rem)', fontWeight: 300, lineHeight: 0.92, color: '#f5f0e8' }}>
+            Your <em style={{ fontStyle: 'italic', color: '#d4ff4e' }}>sessions.</em>
+          </h1>
+        </motion.div>
+
+        {/* STATS */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.08 }}
+          style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 2, marginBottom: 32, background: 'rgba(245,240,232,0.05)', border: '1px solid rgba(245,240,232,0.05)', borderRadius: 4, overflow: 'hidden' }}>
+          {[
+            { label: 'Total Sessions', value: rooms.length },
+            { label: 'Total Questions', value: totalQuestions },
+          ].map(({ label, value }) => (
+            <div key={label} style={{ background: '#060606', padding: '24px 28px' }}>
+              <p style={{ fontFamily: cond, fontSize: 9, fontWeight: 800, letterSpacing: '0.35em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.25)', marginBottom: 10 }}>{label}</p>
+              <div style={{ fontFamily: serif, fontSize: '2.8rem', fontStyle: 'italic', fontWeight: 300, color: '#f5f0e8', lineHeight: 1 }}>{value}</div>
+            </div>
+          ))}
+          <div style={{ background: '#060606', padding: '24px 28px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span className="pip" style={{ width: 7, height: 7, borderRadius: '50%', background: '#3ecf8e', display: 'block' }} />
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600 mb-2">System Gate</p>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
-                <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Online</span>
-              </div>
-            </div>
-            <div className="opacity-10">
-                <MessageSquare size={40} />
+              <p style={{ fontFamily: cond, fontSize: 9, fontWeight: 800, letterSpacing: '0.35em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.25)', marginBottom: 4 }}>System</p>
+              <p style={{ fontFamily: cond, fontSize: 10, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#3ecf8e' }}>Online</p>
             </div>
           </div>
-        </header>
+        </motion.div>
 
-        <div className="relative mb-10 group">
-          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-emerald-500 transition-colors" />
-          <input 
-            type="text" 
-            placeholder="SEARCH BY NAME OR SLUG..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white/[0.02] border border-white/5 rounded-2xl pl-12 pr-6 py-5 text-sm font-bold tracking-widest outline-none focus:border-emerald-500/30 focus:bg-white/[0.04] transition-all text-white placeholder:text-zinc-800"
+        {/* SEARCH */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.14 }}
+          className="search-wrap" style={{ position: 'relative', marginBottom: 24 }}>
+          <Search size={15} className="search-icon" style={{ position: 'absolute', left: 18, top: '50%', transform: 'translateY(-50%)', color: 'rgba(245,240,232,0.2)', transition: 'color 0.2s', pointerEvents: 'none' }} />
+          <input
+            type="text"
+            placeholder="Search sessions..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="search-input"
+            style={{ width: '100%', background: 'rgba(245,240,232,0.03)', border: '1px solid rgba(245,240,232,0.07)', borderRadius: 12, padding: '14px 18px 14px 44px', outline: 'none', fontFamily: sans, fontSize: 13, fontWeight: 500, color: '#f5f0e8', transition: 'border-color 0.25s, background 0.25s' }}
           />
-        </div>
+        </motion.div>
 
-        <div className="space-y-3">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-32 space-y-4">
-                <Loader2 className="animate-spin text-zinc-800" size={32} />
-                <div className="text-[10px] font-black uppercase tracking-[0.5em] text-zinc-800">Synchronizing...</div>
-            </div>
-          ) : filteredRooms.length === 0 ? (
-            <div className="text-center py-32 border border-dashed border-white/5 rounded-[2rem] flex flex-col items-center gap-4">
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-700">No active logs matching query</p>
-            </div>
-          ) : (
-            filteredRooms.map((room) => (
-              <div 
-                key={room.id} 
-                className="group flex flex-col md:flex-row md:items-center justify-between p-6 bg-[#0c0c0c] border border-white/5 rounded-[1.5rem] hover:border-emerald-500/20 hover:bg-[#111] transition-all duration-300"
-              >
-                <div className="flex-1">
-                  <h3 className="text-xl font-black text-white italic uppercase tracking-tight group-hover:text-emerald-500 transition-colors">{room.name}</h3>
-                  <div className="flex items-center gap-4 text-[11px] font-bold uppercase tracking-widest text-zinc-600 mt-2">
-                    <span className="text-zinc-400 font-mono">/{room.slug}</span>
-                    <span className="w-1 h-1 rounded-full bg-zinc-800" />
-                    <span className="flex items-center gap-1.5 text-zinc-400">
-                        <MessageSquare size={12} />
-                        {room.qCount} Questions
-                    </span>
-                    <span className="w-1 h-1 rounded-full bg-zinc-800" />
-                    <span>{timeAgo(room.created_at)}</span>
+        {/* ROOMS */}
+        {loading ? (
+          <div style={{ padding: '80px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+            <Loader2 size={22} color="rgba(245,240,232,0.15)" style={{ animation: 'spin 1s linear infinite' }} />
+            <span style={{ fontFamily: cond, fontSize: 9, fontWeight: 800, letterSpacing: '0.4em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.12)' }}>Synchronizing</span>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div style={{ padding: '80px 24px', textAlign: 'center', border: '1px dashed rgba(245,240,232,0.06)', borderRadius: 16 }}>
+            <p style={{ fontFamily: cond, fontSize: 10, fontWeight: 800, letterSpacing: '0.4em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.1)' }}>
+              {search ? 'No sessions match your search' : 'No sessions yet'}
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <AnimatePresence>
+              {filtered.map((room, i) => (
+                <motion.div
+                  key={room.id}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, x: -16 }}
+                  transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: i * 0.04 }}
+                  className="room-card"
+                  style={{ background: '#0c0c0c', border: '1px solid rgba(245,240,232,0.05)', borderRadius: 14, padding: '20px 24px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16, transition: 'border-color 0.2s, background 0.2s' }}
+                >
+                  {/* INFO */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <h3 style={{ fontFamily: serif, fontSize: 'clamp(1.2rem, 3vw, 1.5rem)', fontWeight: 300, fontStyle: 'italic', color: '#f5f0e8', marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {room.name}
+                    </h3>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+                      <span style={{ fontFamily: cond, fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', color: 'rgba(245,240,232,0.3)' }}>/{room.slug}</span>
+                      <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'rgba(245,240,232,0.1)', display: 'block' }} />
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: sans, fontSize: 11, color: 'rgba(245,240,232,0.25)', fontWeight: 500 }}>
+                        <MessageSquare size={11} />{room.qCount} question{room.qCount !== 1 ? 's' : ''}
+                      </span>
+                      <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'rgba(245,240,232,0.1)', display: 'block' }} />
+                      <span style={{ fontFamily: sans, fontSize: 11, color: 'rgba(245,240,232,0.2)', fontWeight: 500 }}>{timeAgo(room.created_at)}</span>
+                    </div>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-3 mt-6 md:mt-0">
-                  <Link 
-                    href={`/leader/room/${room.slug}`}
-                    className="flex-1 md:flex-none flex items-center justify-center gap-3 px-8 py-3.5 bg-zinc-900 border border-white/5 text-white rounded-xl font-black text-[11px] uppercase tracking-widest hover:bg-white hover:text-black transition-all"
-                  >
-                    Open Stage
-                    <ArrowUpRight size={14} />
-                  </Link>
-                  <button 
-                    onClick={() => deleteRoom(room.id)}
-                    className="p-3.5 bg-zinc-900/50 border border-white/5 text-zinc-700 hover:text-red-500 hover:bg-red-500/5 hover:border-red-500/20 rounded-xl transition-all"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+                  {/* ACTIONS */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Link href={`/leader/room/${room.slug}`} className="open-btn"
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', background: 'transparent', border: '1px solid rgba(245,240,232,0.1)', color: '#f5f0e8', borderRadius: 10, fontFamily: cond, fontSize: 10, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', textDecoration: 'none', transition: 'background 0.2s, color 0.2s, border-color 0.2s', whiteSpace: 'nowrap' }}>
+                      Open Stage <ArrowUpRight size={12} />
+                    </Link>
+                    <button onClick={() => deleteRoom(room.id)} className="del-btn"
+                      style={{ padding: '10px 12px', background: 'transparent', border: '1px solid rgba(245,240,232,0.07)', color: 'rgba(245,240,232,0.2)', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'color 0.2s, border-color 0.2s, background 0.2s' }}>
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
       </div>
     </main>
   )
