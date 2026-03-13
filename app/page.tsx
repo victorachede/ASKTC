@@ -4,7 +4,9 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
-import { MessageCircle, Zap, Globe, Users, Monitor, ArrowRight, TrendingUp } from 'lucide-react'
+import { MessageCircle, Zap, Globe, Users, Monitor, ArrowRight, BarChart2, Mic } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import toast from 'react-hot-toast'
 
 // ── FONT IMPORT (inject once) ─────────────────────────────────────────────────
 const fontUrl = 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400;1,600&family=Barlow:wght@400;500;600;700;800;900&family=Barlow+Condensed:wght@700;800;900&display=swap'
@@ -83,12 +85,12 @@ function MockCard() {
   )
 }
 
-// ── STATS ─────────────────────────────────────────────────────────────────────
+// ── STATS — honest value props, no fake numbers ───────────────────────────────
 const stats = [
-  { num: '10M+', label: 'Questions asked' },
   { num: 'Real-time', label: 'Zero lag sync' },
-  { num: '0 apps', label: 'Nothing to install' },
-  { num: '∞', label: 'Questions per session' },
+  { num: 'No app', label: 'Nothing to install' },
+  { num: 'Voice', label: 'Command your session' },
+  { num: 'Free', label: 'To attend, always' },
 ]
 
 // ── FEATURES ──────────────────────────────────────────────────────────────────
@@ -96,6 +98,8 @@ const features = [
   { icon: <Zap size={16} color="rgba(212,255,78,0.5)" />, title: 'Upvoting', desc: 'Surface the best questions by heat' },
   { icon: <Globe size={16} color="rgba(245,240,232,0.18)" />, title: 'Instant sync', desc: 'Zero lag across all devices' },
   { icon: <Monitor size={16} color="rgba(245,240,232,0.18)" />, title: 'Projector mode', desc: 'One click to the big screen' },
+  { icon: <BarChart2 size={16} color="rgba(245,240,232,0.18)" />, title: 'Live polls', desc: 'Launch a poll mid-session, results live' },
+  { icon: <span style={{ fontSize: 14 }}>🔥</span>, title: 'Reaction wall', desc: 'Audience reacts, emojis float on screen' },
 ]
 
 const steps = [
@@ -108,9 +112,19 @@ const steps = [
 export default function LandingPage() {
   const router = useRouter()
   const [code, setCode] = useState('')
+  const [checking, setChecking] = useState(false)
 
-  const handleJoin = () => {
-    if (code.trim()) router.push(`/room/${code.toLowerCase().trim()}`)
+  const handleJoin = async () => {
+    const slug = code.toLowerCase().trim()
+    if (!slug) return
+    setChecking(true)
+    const { data, error } = await supabase.from('rooms').select('id').eq('slug', slug).single()
+    setChecking(false)
+    if (error || !data) {
+      toast.error('Session not found. Check your code.')
+      return
+    }
+    router.push(`/room/${slug}`)
   }
 
   const serif = "'Cormorant Garamond', serif"
@@ -134,6 +148,7 @@ export default function LandingPage() {
         .scroll-line { animation: scrollPulse 2s ease infinite; }
         .join-btn:hover { background: #e8ff6a !important; }
         .join-btn:active { transform: scale(0.97); }
+        .join-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .cta-btn:hover { background: #e8ff6a !important; box-shadow: 0 0 40px rgba(212,255,78,0.2) !important; }
         .cta-btn:active { transform: scale(0.97); }
         .nav-link:hover { color: #f5f0e8 !important; }
@@ -184,6 +199,7 @@ export default function LandingPage() {
             Run powerful live Q&amp;A sessions. Your crowd asks, you answer — no apps, no friction, just real conversation happening right now.
           </motion.p>
 
+          {/* JOIN BOX */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1], delay: 0.35 }}
             style={{ display: 'flex', alignItems: 'stretch', background: 'rgba(245,240,232,0.04)', border: '1px solid rgba(245,240,232,0.08)', borderRadius: 14, overflow: 'hidden', maxWidth: 400 }}>
             <input
@@ -193,9 +209,9 @@ export default function LandingPage() {
               placeholder="Event Code"
               style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '16px 18px', fontFamily: cond, fontSize: 13, fontWeight: 700, letterSpacing: '0.3em', textTransform: 'uppercase', color: '#f5f0e8', minWidth: 0 }}
             />
-            <button onClick={handleJoin} className="join-btn"
-              style={{ flexShrink: 0, padding: '0 22px', background: '#d4ff4e', color: '#060606', border: 'none', fontFamily: cond, fontSize: 11, fontWeight: 900, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, transition: 'background 0.2s, transform 0.1s', whiteSpace: 'nowrap' }}>
-              Join <ArrowRight size={12} />
+            <button onClick={handleJoin} disabled={checking} className="join-btn"
+              style={{ flexShrink: 0, padding: '0 22px', background: '#d4ff4e', color: '#060606', border: 'none', fontFamily: cond, fontSize: 11, fontWeight: 900, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: checking ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, transition: 'background 0.2s, transform 0.1s', whiteSpace: 'nowrap', opacity: checking ? 0.6 : 1 }}>
+              {checking ? 'Checking...' : <> Join <ArrowRight size={12} /></>}
             </button>
           </motion.div>
 
@@ -213,9 +229,10 @@ export default function LandingPage() {
           className="hidden lg:block"
           style={{ position: 'absolute', right: 60, top: '50%', transform: 'translateY(-50%)', width: '45%', maxWidth: 560 }}
         >
+          {/* Floating badge — honest copy */}
           <div style={{ position: 'absolute', top: -20, right: -16, zIndex: 2, background: '#111', border: '1px solid rgba(245,240,232,0.07)', borderRadius: 16, padding: '16px 20px', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
-            <div style={{ fontFamily: serif, fontSize: '2rem', fontStyle: 'italic', fontWeight: 300, lineHeight: 1, color: '#f5f0e8' }}>10M+</div>
-            <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.25em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.2)', marginTop: 4 }}>Questions sent</div>
+            <div style={{ fontFamily: serif, fontSize: '2rem', fontStyle: 'italic', fontWeight: 300, lineHeight: 1, color: '#f5f0e8' }}>Live</div>
+            <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.25em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.2)', marginTop: 4 }}>Right now</div>
           </div>
           <MockCard />
         </motion.div>
@@ -258,17 +275,19 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Stat cell */}
+          {/* Voice Commander cell — your differentiator */}
           <div style={{ background: '#060606', padding: '32px 28px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 200, borderTop: '1px solid rgba(245,240,232,0.05)' }} className="lg:col-span-5 lg:border-t-0 lg:border-l">
-            <Users size={20} color="rgba(245,240,232,0.15)" />
+            <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(212,255,78,0.06)', border: '1px solid rgba(212,255,78,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Mic size={17} color="#d4ff4e" />
+            </div>
             <div>
-              <div style={{ fontFamily: serif, fontSize: '3.5rem', fontStyle: 'italic', fontWeight: 300, color: '#f5f0e8', lineHeight: 1 }}>10M+</div>
-              <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.15)', marginTop: 8 }}>Questions sent</div>
+              <div style={{ fontFamily: serif, fontSize: '2.2rem', fontWeight: 300, lineHeight: 1, marginBottom: 10, color: '#f5f0e8' }}><em>Voice</em> control</div>
+              <div style={{ fontSize: 13, lineHeight: 1.65, color: 'rgba(245,240,232,0.22)', maxWidth: '24ch' }}>Say a name, question gets assigned. Say "done", queue advances. Nobody else has this.</div>
             </div>
           </div>
 
           {/* Small cells */}
-          {features.map(({ icon, title, desc }, idx) => (
+          {features.map(({ icon, title, desc }) => (
             <div key={title} style={{ background: '#060606', padding: '32px 28px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 200, borderTop: '1px solid rgba(245,240,232,0.05)' }}>
               <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(245,240,232,0.03)', border: '1px solid rgba(245,240,232,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{icon}</div>
               <div>
@@ -285,13 +304,13 @@ export default function LandingPage() {
         <div className="lg:grid lg:grid-cols-2 lg:gap-16 lg:items-center">
           <div style={{ marginBottom: 40 }} className="lg:mb-0">
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 12px', border: '1px solid rgba(212,255,78,0.18)', borderRadius: 100, marginBottom: 24 }}>
-              <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.3em', textTransform: 'uppercase', color: '#d4ff4e' }}>New — Panelist Mode</span>
+              <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.3em', textTransform: 'uppercase', color: '#d4ff4e' }}>Panelist Mode</span>
             </div>
             <h2 style={{ fontFamily: serif, fontSize: 'clamp(2.4rem, 10vw, 4rem)', fontWeight: 300, lineHeight: 1.02, marginBottom: 20, color: '#f5f0e8' }}>
               Questions go<br />to the <em style={{ fontStyle: 'italic', color: '#d4ff4e' }}>right person.</em>
             </h2>
             <p style={{ fontSize: 15, lineHeight: 1.8, color: 'rgba(245,240,232,0.25)', maxWidth: '42ch' }}>
-              The moderator assigns each incoming question to a named panelist. A shared display shows it live and reads it aloud. No passing notes, no mic confusion — just a clean handoff every time.
+              The moderator assigns each incoming question to a named panelist. A shared display shows it live. No passing notes, no mic confusion — just a clean handoff every time.
             </p>
           </div>
 
@@ -355,7 +374,7 @@ export default function LandingPage() {
       {/* ── FOOTER ── */}
       <footer style={{ position: 'relative', zIndex: 1, borderTop: '1px solid rgba(245,240,232,0.04)', padding: '24px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.25em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.1)' }}>ASKTC · 2026</span>
-        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.25em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.1)' }}>Simple Q&amp;A · Built in Nigeria</span>
+        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.25em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.1)' }}>@AskTheChurch · Built in Nigeria by Black Sheep Co.</span>
       </footer>
     </main>
   )

@@ -1,368 +1,271 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Mic, MicOff, Volume2, CheckCircle2, AlertCircle, Zap } from 'lucide-react';
+import { Mic, MicOff, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-// ─── TYPES ────────────────────────────────────────────────────────────────────
-interface VoiceCommanderProps {
+const cond = "'Barlow Condensed', sans-serif";
+const sans = "'Barlow', sans-serif";
+const serif = "'Cormorant Garamond', serif";
+
+interface Props {
   roomId: string;
   slug: string;
-  questions: any[];       // pending questions from parent
-  panelists: any[];       // panelists in session
-  onAssigned?: () => void;
+  questions: any[];
+  panelists: any[];
+  onAssigned: () => void;
 }
 
-type CommandState = 'idle' | 'listening' | 'processing' | 'success' | 'error';
-
-interface ParsedCommand {
-  type: 'assign' | 'done' | 'next' | 'unknown';
-  panelistMatch?: any;
-  questionIndex?: number; // 0 = next/first unassigned
-  raw: string;
-}
-
-// ─── COMMAND PARSER ───────────────────────────────────────────────────────────
-function parseVoiceCommand(transcript: string, panelists: any[], questions: any[]): ParsedCommand {
-  const raw = transcript.trim();
-  const lower = raw.toLowerCase();
-
-  // Done / Mark complete
-  if (/\b(done|finished|complete|next|move on|skip)\b/.test(lower)) {
-    return { type: 'done', raw };
+// Levenshtein distance for fuzzy matching
+function levenshtein(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+    }
   }
+  return dp[m][n];
+}
 
-  // Find panelist name in transcript — fuzzy match
-  const panelistMatch = panelists.find(p => {
-    const name = p.name.toLowerCase();
-    const title = p.title?.toLowerCase() || '';
-    // Match full name, last name, or title + last name
-    const nameParts = name.split(' ');
-    return (
-      lower.includes(name) ||
-      lower.includes(nameParts[nameParts.length - 1]) || // last name
-      (title && lower.includes(title + ' ' + nameParts[nameParts.length - 1]))
-    );
-  });
+function fuzzyMatch(transcript: string, panelists: any[]): any | null {
+  const words = transcript.toLowerCase().split(/\s+/);
+  let bestMatch: any = null;
+  let bestScore = Infinity;
 
-  if (panelistMatch) {
-    return { type: 'assign', panelistMatch, questionIndex: 0, raw };
+  for (const panelist of panelists) {
+    const nameParts = panelist.name.toLowerCase().split(/\s+/);
+    // Try matching any word in transcript against any word in panelist name
+    for (const nameWord of nameParts) {
+      if (nameWord.length < 3) continue; // skip short words like "Dr"
+      for (const transcriptWord of words) {
+        if (transcriptWord.length < 3) continue;
+        const dist = levenshtein(transcriptWord, nameWord);
+        const threshold = Math.max(1, Math.floor(nameWord.length * 0.35));
+        if (dist <= threshold && dist < bestScore) {
+          bestScore = dist;
+          bestMatch = panelist;
+        }
+      }
+    }
   }
-
-  return { type: 'unknown', raw };
+  return bestMatch;
 }
 
-// ─── TRANSCRIPT BUBBLE ────────────────────────────────────────────────────────
-function TranscriptBubble({ text, state }: { text: string; state: CommandState }) {
-  const serif = "'Cormorant Garamond', serif";
-  const cond = "'Barlow Condensed', sans-serif";
-
-  const colors: Record<CommandState, string> = {
-    idle: 'rgba(245,240,232,0.05)',
-    listening: 'rgba(212,255,78,0.06)',
-    processing: 'rgba(245,240,232,0.04)',
-    success: 'rgba(62,207,142,0.08)',
-    error: 'rgba(255,80,80,0.06)',
-  };
-
-  const borders: Record<CommandState, string> = {
-    idle: 'rgba(245,240,232,0.06)',
-    listening: 'rgba(212,255,78,0.2)',
-    processing: 'rgba(245,240,232,0.08)',
-    success: 'rgba(62,207,142,0.25)',
-    error: 'rgba(255,80,80,0.2)',
-  };
-
-  return (
-    <motion.div
-      animate={{ background: colors[state], borderColor: borders[state] }}
-      transition={{ duration: 0.4 }}
-      style={{ border: `1px solid ${borders[state]}`, borderRadius: 14, padding: '14px 18px', minHeight: 56, display: 'flex', alignItems: 'center' }}
-    >
-      {text ? (
-        <p style={{ fontFamily: serif, fontSize: '1.1rem', fontStyle: 'italic', fontWeight: 300, color: state === 'success' ? '#3ecf8e' : state === 'error' ? 'rgba(255,120,120,0.9)' : '#f5f0e8', lineHeight: 1.4 }}>
-          "{text}"
-        </p>
-      ) : (
-        <p style={{ fontFamily: cond, fontSize: 10, fontWeight: 700, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.15)' }}>
-          {state === 'listening' ? 'Listening...' : 'Say a command'}
-        </p>
-      )}
-    </motion.div>
-  );
+function isDoneCommand(transcript: string): boolean {
+  const t = transcript.toLowerCase();
+  return ['done', 'next', 'move on', 'next question', 'finished', 'complete'].some(cmd => t.includes(cmd));
 }
 
-// ─── WAVEFORM ─────────────────────────────────────────────────────────────────
-function Waveform({ active }: { active: boolean }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 20 }}>
-      {[0.4, 0.7, 1, 0.7, 0.5, 0.8, 0.6, 1, 0.4, 0.7].map((h, i) => (
-        <motion.div
-          key={i}
-          animate={active ? { scaleY: [h, 1, h * 0.5, 1, h] } : { scaleY: 0.2 }}
-          transition={active ? { duration: 0.8, repeat: Infinity, delay: i * 0.08, ease: 'easeInOut' } : { duration: 0.3 }}
-          style={{ width: 3, height: 20, background: active ? '#d4ff4e' : 'rgba(245,240,232,0.1)', borderRadius: 2, transformOrigin: 'center' }}
-        />
-      ))}
-    </div>
-  );
-}
-
-// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
-export default function VoiceCommander({ roomId, slug, questions, panelists, onAssigned }: VoiceCommanderProps) {
-  const [state, setState] = useState<CommandState>('idle');
+export default function VoiceCommander({ roomId, slug, questions, panelists, onAssigned }: Props) {
+  const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState('');
-  const [lastResult, setLastResult] = useState('');
-  const [isSupported, setIsSupported] = useState(true);
-  const [assignments, setAssignments] = useState<any[]>([]);
+  const [status, setStatus] = useState<'idle' | 'success' | 'error' | 'done'>('idle');
+  const [statusMsg, setStatusMsg] = useState('');
   const recognitionRef = useRef<any>(null);
-  const listeningRef = useRef(false);
+  const restartRef = useRef<boolean>(false);
 
-  const serif = "'Cormorant Garamond', serif";
-  const cond = "'Barlow Condensed', sans-serif";
-  const sans = "'Barlow', sans-serif";
+  const supported = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
 
-  // ── FETCH ASSIGNMENTS ──────────────────────────────────────────────────────
-  const fetchAssignments = useCallback(async () => {
-    const { data } = await supabase
-      .from('question_assignments')
-      .select('*')
-      .eq('room_id', roomId)
-      .neq('status', 'done');
-    setAssignments(data || []);
-  }, [roomId]);
+  const handleResult = async (raw: string) => {
+    const t = raw.trim();
+    setTranscript(t);
 
-  useEffect(() => { fetchAssignments(); }, [fetchAssignments]);
+    // DONE command
+    if (isDoneCommand(t)) {
+      const { data: active } = await supabase
+        .from('question_assignments').select('*')
+        .eq('room_id', roomId).eq('status', 'active').single();
 
-  // ── EXECUTE COMMAND ────────────────────────────────────────────────────────
-  const executeCommand = useCallback(async (cmd: ParsedCommand) => {
-    setState('processing');
-
-    if (cmd.type === 'done') {
-      // Mark active assignment as done
-      const active = assignments.find(a => a.status === 'active');
       if (active) {
         await supabase.from('question_assignments').update({ status: 'done' }).eq('id', active.id);
         // Promote next queued
-        const next = assignments.find(a => a.status === 'queued');
-        if (next) {
-          await supabase.from('question_assignments').update({ status: 'active' }).eq('id', next.id);
-        }
-        setLastResult('Marked done — next question up');
-        setState('success');
-        onAssigned?.();
+        const { data: next } = await supabase
+          .from('question_assignments').select('*')
+          .eq('room_id', roomId).eq('status', 'queued')
+          .order('queue_position', { ascending: true }).limit(1).single();
+        if (next) await supabase.from('question_assignments').update({ status: 'active' }).eq('id', next.id);
+        setStatus('done');
+        setStatusMsg('Moving on');
+        onAssigned();
       } else {
-        setLastResult('Nothing active to mark done');
-        setState('error');
+        setStatus('error');
+        setStatusMsg('Nothing active to close');
       }
+      setTimeout(() => { setStatus('idle'); setTranscript(''); }, 3000);
       return;
     }
 
-    if (cmd.type === 'assign' && cmd.panelistMatch) {
-      // Find next unassigned pending question
-      const assignedIds = new Set(assignments.map(a => a.question_id));
-      const pending = questions.filter(q => q.status === 'pending' && !assignedIds.has(q.id));
-
-      if (pending.length === 0) {
-        setLastResult('No unassigned questions in queue');
-        setState('error');
-        return;
-      }
-
-      const targetQ = pending[0];
-      const queuedCount = assignments.filter(a => a.status !== 'done').length;
-
-      // If nothing active, push straight to active
-      const hasActive = assignments.some(a => a.status === 'active');
-      const newStatus = hasActive ? 'queued' : 'active';
-
-      const { error } = await supabase.from('question_assignments').insert({
-        question_id: targetQ.id,
-        panelist_id: cmd.panelistMatch.id,
-        room_id: roomId,
-        status: newStatus,
-        queue_position: queuedCount,
-      });
-
-      if (error) {
-        setLastResult('Assignment failed');
-        setState('error');
-      } else {
-        const pName = `${cmd.panelistMatch.title ? cmd.panelistMatch.title + ' ' : ''}${cmd.panelistMatch.name}`;
-        setLastResult(`Assigned to ${pName}${newStatus === 'active' ? ' — now live' : ' — queued'}`);
-        setState('success');
-        onAssigned?.();
-        fetchAssignments();
-      }
+    // ASSIGN command - find panelist
+    const panelist = fuzzyMatch(t, panelists);
+    if (!panelist) {
+      setStatus('error');
+      setStatusMsg(`Didn't catch a name — heard: "${t}"`);
+      setTimeout(() => { setStatus('idle'); setTranscript(''); }, 4000);
       return;
     }
 
-    setLastResult(`Didn't catch that — try "Prof Barry, take this" or "Done"`);
-    setState('error');
-  }, [assignments, questions, panelists, roomId, onAssigned, fetchAssignments]);
+    // Find next unassigned pending question
+    const assignedIds = (await supabase.from('question_assignments').select('question_id').eq('room_id', roomId).in('status', ['active', 'queued'])).data?.map((a: any) => a.question_id) || [];
+    const nextQ = questions.find(q => q.status === 'pending' && !q.is_projected && !assignedIds.includes(q.id));
 
-  // ── SPEECH RECOGNITION SETUP ───────────────────────────────────────────────
-  useEffect(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setIsSupported(false);
+    if (!nextQ) {
+      setStatus('error');
+      setStatusMsg('No pending questions to assign');
+      setTimeout(() => { setStatus('idle'); setTranscript(''); }, 3000);
       return;
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
-    recognition.maxAlternatives = 3;
+    // Check if anything is active
+    const { data: currentActive } = await supabase
+      .from('question_assignments').select('id')
+      .eq('room_id', roomId).eq('status', 'active');
 
-    recognition.onstart = () => {
-      setState('listening');
-      setTranscript('');
-    };
+    const assignStatus = (currentActive && currentActive.length > 0) ? 'queued' : 'active';
 
-    recognition.onresult = (e: any) => {
-      const current = Array.from(e.results)
-        .map((r: any) => r[0].transcript)
-        .join('');
-      setTranscript(current);
+    const { data: existingQ } = await supabase
+      .from('question_assignments').select('queue_position')
+      .eq('room_id', roomId).eq('status', 'queued')
+      .order('queue_position', { ascending: false }).limit(1).single();
 
-      // If final result
-      if (e.results[e.results.length - 1].isFinal) {
-        const final = e.results[e.results.length - 1][0].transcript;
-        const cmd = parseVoiceCommand(final, panelists, questions);
-        executeCommand(cmd);
-      }
-    };
+    const queuePos = (existingQ?.queue_position || 0) + 1;
 
-    recognition.onerror = (e: any) => {
-      if (e.error !== 'aborted') {
-        setState('error');
-        setLastResult('Mic error — try again');
-      }
-    };
+    await supabase.from('question_assignments').insert({
+      question_id: nextQ.id,
+      panelist_id: panelist.id,
+      room_id: roomId,
+      status: assignStatus,
+      queue_position: assignStatus === 'queued' ? queuePos : 0,
+    });
 
-    recognition.onend = () => {
-      listeningRef.current = false;
-      if (state === 'listening') setState('idle');
-    };
-
-    recognitionRef.current = recognition;
-  }, [panelists, questions, executeCommand]);
-
-  const toggleListen = () => {
-    if (!recognitionRef.current) return;
-    if (listeningRef.current) {
-      recognitionRef.current.stop();
-      listeningRef.current = false;
-      setState('idle');
-    } else {
-      try {
-        recognitionRef.current.start();
-        listeningRef.current = true;
-        setState('listening');
-        // Reset after 3s of success/error
-        if (state === 'success' || state === 'error') {
-          setTranscript('');
-          setLastResult('');
-        }
-      } catch (e) {
-        // Already started
-      }
-    }
+    setStatus('success');
+    setStatusMsg(`Assigned to ${panelist.name}`);
+    onAssigned();
+    setTimeout(() => { setStatus('idle'); setTranscript(''); }, 3000);
   };
 
-  // Auto-reset success/error after 4s
-  useEffect(() => {
-    if (state === 'success' || state === 'error') {
-      const t = setTimeout(() => { setState('idle'); setTranscript(''); }, 4000);
-      return () => clearTimeout(t);
-    }
-  }, [state]);
+  const startListening = () => {
+    if (!supported) return toast.error('Voice not supported in this browser');
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const r = new SpeechRecognition();
+    r.continuous = true;
+    r.interimResults = true;
+    r.lang = 'en-US';
 
-  if (!isSupported) return (
-    <div style={{ padding: '16px 20px', background: 'rgba(255,80,80,0.05)', border: '1px solid rgba(255,80,80,0.15)', borderRadius: 14 }}>
-      <p style={{ fontFamily: cond, fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(255,120,120,0.7)' }}>
-        Voice commands not supported in this browser — use Chrome
-      </p>
-    </div>
-  );
+    r.onresult = (e: any) => {
+      const results = Array.from(e.results as SpeechRecognitionResultList);
+      const final = results.filter((r: any) => r.isFinal).map((r: any) => r[0].transcript).join(' ');
+      if (final) handleResult(final);
+    };
 
-  const isListening = state === 'listening';
+    r.onerror = (e: any) => {
+      if (e.error === 'no-speech') return; // ignore silence
+      if (e.error === 'aborted') return;
+      setStatus('error');
+      setStatusMsg('Mic error — try again');
+      setTimeout(() => setStatus('idle'), 3000);
+    };
+
+    r.onend = () => {
+      // Auto restart if still supposed to be listening
+      if (restartRef.current) {
+        try { r.start(); } catch {}
+      }
+    };
+
+    recognitionRef.current = r;
+    restartRef.current = true;
+    r.start();
+    setListening(true);
+    setStatus('idle');
+    setTranscript('');
+  };
+
+  const stopListening = () => {
+    restartRef.current = false;
+    recognitionRef.current?.stop();
+    recognitionRef.current = null;
+    setListening(false);
+    setStatus('idle');
+    setTranscript('');
+  };
+
+  useEffect(() => () => stopListening(), []);
+
+  const statusColor = status === 'success' ? '#d4ff4e' : status === 'error' ? 'rgba(255,80,80,0.8)' : status === 'done' ? '#d4ff4e' : 'rgba(245,240,232,0.3)';
 
   return (
-    <div style={{ background: '#0a0a0a', border: '1px solid rgba(245,240,232,0.07)', borderRadius: 20, overflow: 'hidden' }}>
+    <div style={{ background: '#0a0a0a', border: '1px solid rgba(245,240,232,0.06)', borderRadius: 20, padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
 
       {/* HEADER */}
-      <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(245,240,232,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Zap size={13} color="#d4ff4e" />
-          <span style={{ fontFamily: cond, fontSize: 10, fontWeight: 800, letterSpacing: '0.3em', textTransform: 'uppercase', color: '#f5f0e8' }}>Voice Commander</span>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Zap size={12} color="#d4ff4e" />
+          <span style={{ fontFamily: cond, fontSize: 9, fontWeight: 800, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.6)' }}>Voice Control</span>
         </div>
-        <Waveform active={isListening} />
+        {!supported && (
+          <span style={{ fontFamily: cond, fontSize: 8, fontWeight: 700, color: 'rgba(255,80,80,0.6)', letterSpacing: '0.2em', textTransform: 'uppercase' }}>Chrome only</span>
+        )}
       </div>
 
-      {/* BODY */}
-      <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-        {/* TRANSCRIPT */}
-        <TranscriptBubble text={state === 'success' || state === 'error' ? lastResult : transcript} state={state} />
-
-        {/* MIC BUTTON */}
-        <button
-          onClick={toggleListen}
-          style={{
-            width: '100%', height: 56, border: 'none', borderRadius: 14, cursor: 'pointer',
-            background: isListening ? '#d4ff4e' : 'rgba(245,240,232,0.05)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-            transition: 'background 0.2s, transform 0.1s',
-          }}
-        >
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={isListening ? 'on' : 'off'}
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              style={{ display: 'flex', alignItems: 'center', gap: 8 }}
-            >
-              {isListening
-                ? <><MicOff size={16} color="#060606" /><span style={{ fontFamily: cond, fontSize: 11, fontWeight: 900, letterSpacing: '0.2em', color: '#060606' }}>STOP</span></>
-                : <><Mic size={16} color="rgba(245,240,232,0.5)" /><span style={{ fontFamily: cond, fontSize: 11, fontWeight: 900, letterSpacing: '0.2em', color: 'rgba(245,240,232,0.4)' }}>HOLD TO COMMAND</span></>
-              }
-            </motion.div>
-          </AnimatePresence>
-        </button>
-
-        {/* COMMAND HINTS */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <p style={{ fontFamily: cond, fontSize: 8, fontWeight: 800, letterSpacing: '0.35em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.15)', marginBottom: 4 }}>Example Commands</p>
-          {[
-            `"Prof Barry, take that question"`,
-            `"Dr. Okon, this one's yours"`,
-            `"Done" / "Next" / "Move on"`,
-          ].map(hint => (
-            <div key={hint} style={{ padding: '8px 12px', background: 'rgba(245,240,232,0.02)', border: '1px solid rgba(245,240,232,0.05)', borderRadius: 8 }}>
-              <p style={{ fontFamily: serif, fontSize: '0.85rem', fontStyle: 'italic', fontWeight: 300, color: 'rgba(245,240,232,0.3)' }}>{hint}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* PANELISTS IN SESSION */}
-        {panelists.length > 0 && (
-          <div>
-            <p style={{ fontFamily: cond, fontSize: 8, fontWeight: 800, letterSpacing: '0.35em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.15)', marginBottom: 8 }}>Recognized Names</p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {panelists.map(p => (
-                <span key={p.id} style={{ padding: '5px 10px', background: 'rgba(245,240,232,0.03)', border: '1px solid rgba(245,240,232,0.07)', borderRadius: 8, fontFamily: cond, fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', color: 'rgba(245,240,232,0.35)' }}>
-                  {p.title ? `${p.title} ` : ''}{p.name}
-                </span>
+      {/* MIC BUTTON */}
+      <button onClick={listening ? stopListening : startListening} disabled={!supported}
+        style={{ width: '100%', height: 56, borderRadius: 14, border: listening ? '1px solid rgba(212,255,78,0.3)' : '1px solid rgba(245,240,232,0.08)', background: listening ? 'rgba(212,255,78,0.06)' : 'rgba(245,240,232,0.03)', cursor: supported ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, transition: 'all 0.2s' }}>
+        {listening ? (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              {[1,2,3,4,3,2].map((h, i) => (
+                <div key={i} style={{ width: 3, height: h * 5, background: '#d4ff4e', borderRadius: 100, animation: `wave ${0.5 + i * 0.1}s ease infinite alternate` }} />
               ))}
             </div>
-          </div>
+            <span style={{ fontFamily: cond, fontSize: 9, fontWeight: 900, letterSpacing: '0.25em', textTransform: 'uppercase', color: '#d4ff4e' }}>Listening — tap to stop</span>
+          </>
+        ) : (
+          <>
+            <Mic size={15} color="rgba(245,240,232,0.4)" />
+            <span style={{ fontFamily: cond, fontSize: 9, fontWeight: 800, letterSpacing: '0.25em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.4)' }}>Tap to start</span>
+          </>
         )}
+      </button>
+
+      <style>{`
+        @keyframes wave { from { transform: scaleY(0.5); } to { transform: scaleY(1.5); } }
+      `}</style>
+
+      {/* TRANSCRIPT / STATUS */}
+      {(transcript || status !== 'idle') && (
+        <div style={{ padding: '12px 14px', background: 'rgba(245,240,232,0.02)', border: `1px solid ${statusColor}30`, borderRadius: 10 }}>
+          {transcript && (
+            <p style={{ fontFamily: serif, fontSize: '0.9rem', fontStyle: 'italic', color: 'rgba(245,240,232,0.5)', marginBottom: statusMsg ? 6 : 0 }}>"{transcript}"</p>
+          )}
+          {statusMsg && (
+            <p style={{ fontFamily: cond, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: statusColor }}>{statusMsg}</p>
+          )}
+        </div>
+      )}
+
+      {/* PANELIST CHIPS */}
+      {panelists.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span style={{ fontFamily: cond, fontSize: 8, fontWeight: 800, letterSpacing: '0.35em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.15)' }}>Say their name</span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {panelists.map(p => (
+              <span key={p.id} style={{ padding: '4px 10px', background: 'rgba(245,240,232,0.04)', border: '1px solid rgba(245,240,232,0.08)', borderRadius: 100, fontFamily: cond, fontSize: 8, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.35)' }}>
+                {p.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* HINT */}
+      <div style={{ padding: '10px 12px', background: 'rgba(245,240,232,0.02)', borderRadius: 8, borderLeft: '2px solid rgba(212,255,78,0.15)' }}>
+        <p style={{ fontFamily: cond, fontSize: 8, fontWeight: 700, letterSpacing: '0.15em', color: 'rgba(245,240,232,0.2)', lineHeight: 1.7 }}>
+          "PROF BARRY, TAKE THAT" → assigns next question<br />
+          "DONE" / "NEXT" → marks active, promotes queue
+        </p>
       </div>
     </div>
   );
