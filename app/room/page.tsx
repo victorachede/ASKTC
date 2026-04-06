@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -9,102 +8,9 @@ import QuestionInput from '@/components/QuestionInput'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
-
 export default function RoomPage() {
   const params = useParams()
   const router = useRouter()
-  {/* ================= TOP BAR ================= */}
-      <div className="sticky top-0 z-50 bg-[#f7f4ef]/90 backdrop-blur border-b border-black/10">
-        <div className="max-w-3xl mx-auto px-6 py-4 flex justify-between items-center">
-
-          <Link href="/" className="text-sm text-black/50 flex items-center gap-2">
-            <ChevronLeft size={14} /> Exit
-          </Link>
-
-          <div className="text-xs font-semibold tracking-widest">
-            LIVE • {room?.name || slug}
-          </div>
-
-          <button onClick={copyCode}>
-            {copied ? <Check size={14} /> : <Copy size={14} />}
-          </button>
-
-        </div>
-      </div>
-
-      {/* ================= MAIN ================= */}
-      <div className="flex-1 w-full">
-
-        <div className="max-w-3xl mx-auto px-6 py-8">
-
-          {/* ================= LIVE ZONE ================= */}
-          <div className="space-y-6 mb-10">
-
-            <ReactionBar roomId={room?.id} />
-
-            {activePoll && <PollVote poll={activePoll} />}
-
-            {liveQuestion && (
-              <div className="p-6 border border-black/10 rounded-2xl bg-white">
-                <div className="text-xs text-black/40 mb-2">
-                  Live Question
-                </div>
-                <p className="text-lg italic">
-                  "{liveQuestion.content}"
-                </p>
-              </div>
-            )}
-
-          </div>
-
-          {/* ================= FEED ================= */}
-          {loading ? (
-            <div className="flex justify-center py-20">
-              <Loader2 className="animate-spin" />
-            </div>
-          ) : (
-            <div className="space-y-8">
-              {questions.map((q) => (
-                <div
-                  key={q.id}
-                  className="border-b border-black/10 pb-6"
-                >
-                  <div className="flex justify-between gap-6">
-
-                    <div>
-                      <div className="text-xs text-black/40 mb-1">
-                        {q.guest_name || "Anonymous"}
-                      </div>
-
-                      <p className="text-lg italic">
-                        "{q.content}"
-                      </p>
-                    </div>
-
-                    <div className="flex flex-col items-center gap-1">
-                      <Star size={16} className="text-black/40" />
-                      <span className="text-xs text-black/60">
-                        {q.upvote_count || 0}
-                      </span>
-                    </div>
-
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-        </div>
-      </div>
-
-      {/* ================= INPUT BAR ================= */}
-      <div className="sticky bottom-0 border-t border-black/10 bg-[#f7f4ef]">
-        <div className="max-w-3xl mx-auto px-6 py-4">
-          <QuestionInput />
-        </div>
-      </div>
-
-=======
   const slug = typeof params?.slug === 'string' ? params.slug : ''
   
   const [questions, setQuestions] = useState<any[]>([])
@@ -122,7 +28,6 @@ export default function RoomPage() {
     if (!slug) { router.push('/'); return; }
 
     const fetchQuestions = async () => {
-      // Joining upvotes to get the count for the heart buttons
       const { data } = await supabase
         .from('questions')
         .select('*, upvotes(count)')
@@ -164,7 +69,6 @@ export default function RoomPage() {
   return (
     <main className="min-h-screen bg-[#050505] text-zinc-400 selection:bg-emerald-500/30 font-sans antialiased">
       
-      {/* NAV */}
       <nav className="sticky top-0 w-full h-20 bg-black/80 backdrop-blur-xl border-b border-white/5 z-50 flex items-center justify-between px-8">
         <Link href="/" className="flex items-center gap-2 text-[10px] font-black tracking-[0.2em] uppercase hover:text-white transition-colors">
           <ChevronLeft size={14} />
@@ -182,7 +86,6 @@ export default function RoomPage() {
         </div>
       </nav>
 
-      {/* Main Content */}
       <div className="max-w-2xl mx-auto w-full px-6 pt-16 pb-48">
         <header className="mb-16">
           <div className="flex items-center gap-3 mb-4">
@@ -197,7 +100,6 @@ export default function RoomPage() {
           </p>
         </header>
 
-        {/* Question Feed */}
         <div className="space-y-10">
           {loading ? (
             <div className="flex flex-col items-center py-20 gap-4">
@@ -224,8 +126,6 @@ export default function RoomPage() {
                           {new Date(q.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
-                      
-                      {/* Upvote UI */}
                       <button 
                         onClick={() => handleUpvote(q.id)}
                         className="flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full border border-white/5 hover:border-emerald-500/50 transition-all group/btn"
@@ -247,7 +147,6 @@ export default function RoomPage() {
         </div>
       </div>
 
-      {/* Claim Identity Banner */}
       {!session && localQuestionCount > 0 && (
         <div className="fixed bottom-36 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-md z-40">
           <Link href="/signup" className="flex items-center justify-between bg-emerald-600 text-white p-5 rounded-2xl shadow-[0_20px_40px_rgba(5,150,105,0.2)] hover:bg-emerald-500 hover:scale-[1.02] transition-all group">
@@ -263,9 +162,8 @@ export default function RoomPage() {
         </div>
       )}
 
-      {/* Floating Input */}
       <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black via-black to-transparent pointer-events-none">
-        <div className="max-w-2xl mx-auto pointer-events-auto">
+        .  <div className="max-w-2xl mx-auto pointer-events-auto">
           <QuestionInput />
         </div>
       </div>
