@@ -99,7 +99,7 @@ export default function RoomModeration() {
       )
       .subscribe()
 
-    return () => supabase.removeChannel(channel)
+    return () => { supabase.removeChannel(channel) }
   }, [room])
 
   const pendingQuestions = questions.filter(q => q.status === "pending")
