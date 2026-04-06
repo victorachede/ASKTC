@@ -1,16 +1,4 @@
-<<<<<<< HEAD
-"use client"
 
-import { useState, useEffect } from "react"
-import { useParams, useRouter } from "next/navigation"
-import { ChevronLeft, Copy, Check, Star, Loader2 } from "lucide-react"
-import Link from "next/link"
-import QuestionInput from "@/components/QuestionInput"
-import ReactionBar from "@/components/ReactionBar"
-import PollVote from "@/components/PollVote"
-import { supabase } from "@/lib/supabase"
-import toast from "react-hot-toast"
-=======
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -20,120 +8,12 @@ import Link from 'next/link'
 import QuestionInput from '@/components/QuestionInput'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
->>>>>>> d8d8456f3e30c747ec5c81912e52a98488582235
+
 
 export default function RoomPage() {
   const params = useParams()
   const router = useRouter()
-<<<<<<< HEAD
-
-  const slug = typeof params?.slug === "string" ? params.slug : ""
-
-  const [room, setRoom] = useState<any>(null)
-  const [questions, setQuestions] = useState<any[]>([])
-  const [activePoll, setActivePoll] = useState<any>(null)
-  const [liveQuestion, setLiveQuestion] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [copied, setCopied] = useState(false)
-  const [upvotedIds, setUpvotedIds] = useState<string[]>([])
-
-  /* ------------------ FETCH ------------------ */
-
-  const fetchRoom = async () => {
-    const { data } = await supabase
-      .from("rooms")
-      .select("id, name")
-      .eq("slug", slug)
-      .single()
-
-    if (!data) {
-      toast.error("Room not found")
-      router.push("/")
-      return null
-    }
-
-    setRoom(data)
-    return data
-  }
-
-  const fetchQuestions = async (roomId: string) => {
-    const { data } = await supabase
-      .from("questions")
-      .select("*")
-      .eq("room_id", roomId)
-      .order("created_at", { ascending: false })
-
-    const { data: upvotes } = await supabase
-      .from("upvotes")
-      .select("question_id")
-
-    const formatted =
-      data?.map((q: any) => ({
-        ...q,
-        upvote_count:
-          upvotes?.filter((u) => u.question_id === q.id).length || 0,
-      })) || []
-
-    setQuestions(formatted)
-  }
-
-  const fetchPoll = async (roomId: string) => {
-    const { data } = await supabase
-      .from("polls")
-      .select("*, poll_options(*), poll_votes(*)")
-      .eq("room_id", roomId)
-      .eq("is_active", true)
-      .maybeSingle()
-
-    setActivePoll(data || null)
-  }
-
-  const fetchLiveQuestion = async (roomId: string) => {
-    const { data } = await supabase
-      .from("questions")
-      .select("*")
-      .eq("room_id", roomId)
-      .eq("is_projected", true)
-      .maybeSingle()
-
-    setLiveQuestion(data || null)
-  }
-
-  const fetchAll = async () => {
-    setLoading(true)
-
-    const roomData = await fetchRoom()
-    if (!roomData) return
-
-    await Promise.all([
-      fetchQuestions(roomData.id),
-      fetchPoll(roomData.id),
-      fetchLiveQuestion(roomData.id),
-    ])
-
-    setLoading(false)
-  }
-
-  useEffect(() => {
-    if (!slug) return
-    fetchAll()
-  }, [slug])
-
-  /* ------------------ UI HELPERS ------------------ */
-
-  const copyCode = () => {
-    navigator.clipboard.writeText(slug)
-    setCopied(true)
-    toast.success("Copied room code")
-    setTimeout(() => setCopied(false), 2000)
-  }
-
-  /* ------------------ UI ------------------ */
-
-  return (
-    <main className="min-h-screen bg-[#f7f4ef] text-[#1a1410] flex flex-col">
-
-      {/* ================= TOP BAR ================= */}
+========== TOP BAR ================= */}
       <div className="sticky top-0 z-50 bg-[#f7f4ef]/90 backdrop-blur border-b border-black/10">
         <div className="max-w-3xl mx-auto px-6 py-4 flex justify-between items-center">
 
@@ -389,7 +269,7 @@ export default function RoomPage() {
           <QuestionInput />
         </div>
       </div>
->>>>>>> d8d8456f3e30c747ec5c81912e52a98488582235
+
     </main>
   )
 }
