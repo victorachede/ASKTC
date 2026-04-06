@@ -1,32 +1,4 @@
-<<<<<<< HEAD
-"use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
-import { ArrowLeft, Loader2, ArrowRight, Hash } from "lucide-react"
-import Link from "next/link"
-import toast from "react-hot-toast"
-import { motion } from "framer-motion"
-
-export default function CreateRoom() {
-  const router = useRouter()
-
-  const [roomName, setRoomName] = useState("")
-  const [slug, setSlug] = useState("")
-  const [loading, setLoading] = useState(false)
-
-  const generateSlug = (val: string) =>
-    val
-      .toLowerCase()
-      .trim()
-      .replace(/\s+/g, "-")
-      .replace(/[^a-z0-9-]/g, "")
-
-  const handleNameChange = (val: string) => {
-    setRoomName(val)
-    setSlug(generateSlug(val))
-=======
 'use client'
 
 import { useState } from 'react'
@@ -51,53 +23,12 @@ export default function CreateRoom() {
   const handleNameChange = (val: string) => {
     setRoomName(val)
     setSlug(val.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''))
->>>>>>> d8d8456f3e30c747ec5c81912e52a98488582235
+
   }
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
-<<<<<<< HEAD
 
-    const finalSlug =
-      slug.trim() || Math.random().toString(36).substring(2, 8)
-
-    setLoading(true)
-
-    const { error } = await supabase
-      .from("rooms")
-      .insert([{ name: roomName, slug: finalSlug }])
-
-    if (error) {
-      toast.error(
-        error.code === "23505"
-          ? "Access code already exists"
-          : "Failed to create session"
-      )
-      setLoading(false)
-      return
-    }
-
-    toast.success("Session created")
-    router.push(`/leader/room/${finalSlug}`)
-  }
-
-  return (
-    <main className="min-h-screen bg-white text-black flex flex-col">
-
-      {/* NAV */}
-      <nav className="fixed top-0 left-0 right-0 h-14 flex items-center justify-between px-6 border-b border-black/10 bg-white/80 backdrop-blur">
-        <Link
-          href="/"
-          className="flex items-center gap-2 text-xs text-black/60 hover:text-black transition"
-        >
-          <ArrowLeft size={14} />
-          Back
-        </Link>
-
-        <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-black/40">
-          <span className="w-1.5 h-1.5 bg-lime-400 rounded-full animate-pulse" />
-          Create session
-=======
     const finalSlug = slug.trim() || Math.random().toString(36).substring(2, 8)
     setIsLoading(true)
     const { error } = await supabase.from('rooms').insert([{ name: roomName, slug: finalSlug }])
@@ -141,34 +72,12 @@ export default function CreateRoom() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span className="pip" style={{ width: 6, height: 6, borderRadius: '50%', background: '#d4ff4e', display: 'block' }} />
           <span style={{ fontFamily: cond, fontSize: 9, fontWeight: 800, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.3)' }}>New Session</span>
->>>>>>> d8d8456f3e30c747ec5c81912e52a98488582235
+
         </div>
       </nav>
 
       {/* CONTENT */}
-<<<<<<< HEAD
-      <div className="max-w-xl mx-auto w-full px-6 pt-28 pb-20 flex-1 flex flex-col justify-center">
 
-        {/* HEADER */}
-        <motion.div
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="mb-12"
-        >
-          <div className="text-xs uppercase tracking-widest text-black/40 mb-4">
-            Session setup
-          </div>
-
-          <h1 className="text-4xl md:text-5xl font-semibold leading-tight">
-            Launch a{" "}
-            <span className="text-lime-500">live session</span>
-          </h1>
-
-          <p className="text-sm text-black/60 mt-4">
-            Create a room for real-time audience interaction.
-          </p>
-=======
       <div style={{ position: 'relative', zIndex: 1, maxWidth: 560, margin: '0 auto', padding: '120px 24px 80px', display: 'flex', flexDirection: 'column', minHeight: '100vh', justifyContent: 'center' }}>
 
         {/* HEADER */}
@@ -185,55 +94,13 @@ export default function CreateRoom() {
           <h1 style={{ fontFamily: serif, fontSize: 'clamp(2.8rem, 10vw, 4.5rem)', fontWeight: 300, lineHeight: 0.92, letterSpacing: '-0.01em', color: '#f5f0e8' }}>
             Launch your<br /><em style={{ fontStyle: 'italic', color: '#d4ff4e' }}>session.</em>
           </h1>
->>>>>>> d8d8456f3e30c747ec5c81912e52a98488582235
+
         </motion.div>
 
         {/* FORM */}
         <motion.form
           onSubmit={handleCreate}
-<<<<<<< HEAD
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1, duration: 0.6 }}
-          className="space-y-8"
-        >
 
-          {/* NAME */}
-          <div>
-            <label className="text-xs uppercase tracking-widest text-black/40">
-              Session name
-            </label>
-
-            <input
-              value={roomName}
-              onChange={(e) => handleNameChange(e.target.value)}
-              placeholder="e.g. Youth Conference 2026"
-              className="w-full mt-3 text-xl font-medium border-b border-black/10 focus:border-lime-400 outline-none py-3"
-            />
-          </div>
-
-          {/* SLUG */}
-          <div>
-            <label className="text-xs uppercase tracking-widest text-black/40">
-              Access code
-            </label>
-
-            <input
-              value={slug}
-              onChange={(e) =>
-                setSlug(generateSlug(e.target.value))
-              }
-              placeholder="auto-generated"
-              className="w-full mt-3 px-4 py-3 text-sm font-semibold tracking-widest uppercase border border-black/10 rounded-md focus:border-lime-400 outline-none"
-            />
-
-            <div className="flex items-center gap-2 mt-2 text-xs text-black/40">
-              <Hash size={12} />
-              <span>
-                Join link:{" "}
-                <span className="font-mono text-black/60">
-                  asktc.vercel.app/room/{slug || "..."}
-=======
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
@@ -292,25 +159,13 @@ export default function CreateRoom() {
                 Audience joins at{' '}
                 <span style={{ fontFamily: cond, fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(245,240,232,0.5)' }}>
                   asktc.vercel.app/room/{slug || '···'}
->>>>>>> d8d8456f3e30c747ec5c81912e52a98488582235
+
                 </span>
               </span>
             </div>
           </div>
 
-<<<<<<< HEAD
-          {/* BUTTON */}
-          <button
-            type="submit"
-            disabled={!roomName || loading}
-            className="w-full h-14 bg-black text-white rounded-md font-medium flex items-center justify-center gap-2 hover:bg-black/90 disabled:opacity-40 transition"
-          >
-            {loading ? (
-              <Loader2 className="animate-spin" size={18} />
-            ) : (
-              <>
-                Create session
-=======
+
           {/* SUBMIT */}
           <button
             type="submit"
@@ -333,19 +188,14 @@ export default function CreateRoom() {
             ) : (
               <>
                 Initialize Stage
->>>>>>> d8d8456f3e30c747ec5c81912e52a98488582235
+
                 <ArrowRight size={16} />
               </>
             )}
           </button>
         </motion.form>
 
-<<<<<<< HEAD
-        {/* FOOTER */}
-        <p className="text-center text-xs text-black/30 mt-10">
-          You’ll be redirected to the control dashboard.
-        </p>
-=======
+
         {/* FOOTER NOTE */}
         <motion.p
           initial={{ opacity: 0 }}
@@ -355,7 +205,7 @@ export default function CreateRoom() {
         >
           After creating, you'll be taken to the control panel.
         </motion.p>
->>>>>>> d8d8456f3e30c747ec5c81912e52a98488582235
+
       </div>
     </main>
   )
