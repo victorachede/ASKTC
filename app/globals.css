@@ -1,16 +1,38 @@
 @import "tailwindcss";
 
 @theme {
+<<<<<<< HEAD
   --color-background: #f7f4ef;
   --color-foreground: #1a1410;
   --color-accent: #c8a96e;
   --color-muted: #8a8279;
   --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
   --ease-paris: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+=======
+  /* High-End Dark Palette */
+  --color-background: #0a0a0a;
+  --color-foreground: #ffffff;
+  --color-accent: #ffffff;
+  --color-muted: #666666;
+
+  /* INTER-FIRST FONT STACK
+     We move var(--font-inter) to the front so it overrides system defaults
+  */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  
+  /* Precision Optical Sizing */
+  --letter-spacing-tighter: -0.05em;
+  --letter-spacing-tight: -0.02em;
+  --letter-spacing-normal: -0.011em;
+
+  /* Smooth Startup Curve */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+>>>>>>> d8d8456f3e30c747ec5c81912e52a98488582235
 }
 
 @layer base {
   body {
+<<<<<<< HEAD
     background-color: #f7f4ef;
     color: #1a1410;
     font-family: var(--font-sans);
@@ -24,3 +46,50 @@
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
   .editorial-transition { transition: all 500ms cubic-bezier(0.25, 0.46, 0.45, 0.94); }
 }
+=======
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    letter-spacing: var(--letter-spacing-normal);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* INTER SWEET SPOT: 
+     Inter looks best at heavy weights with tight tracking 
+  */
+  h1, h2, .text-4xl, .text-5xl, .text-6xl, .text-7xl {
+    letter-spacing: var(--letter-spacing-tighter) !important;
+    font-weight: 800; /* Extra Bold for that impact */
+    line-height: 0.9;
+  }
+
+  h3, .text-2xl, button {
+    letter-spacing: var(--letter-spacing-tight);
+    font-weight: 600;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .premium-transition {
+    transition-property: all;
+    transition-duration: 600ms;
+    transition-timing-function: var(--ease-out-expo);
+  }
+
+  /* Glassmorphism utility for your Bento cards */
+  .glass {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+}
+>>>>>>> d8d8456f3e30c747ec5c81912e52a98488582235
