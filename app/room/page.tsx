@@ -13,7 +13,7 @@ import toast from 'react-hot-toast'
 export default function RoomPage() {
   const params = useParams()
   const router = useRouter()
-========== TOP BAR ================= */}
+  {/* ================= TOP BAR ================= */}
       <div className="sticky top-0 z-50 bg-[#f7f4ef]/90 backdrop-blur border-b border-black/10">
         <div className="max-w-3xl mx-auto px-6 py-4 flex justify-between items-center">
 
