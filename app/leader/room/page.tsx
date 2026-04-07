@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   MessageSquare,
   Clock,
-  ChevronRight,
   Terminal,
   ExternalLink,
 } from "lucide-react";
@@ -30,16 +29,16 @@ export default function RoomModeration() {
   const fetchRoom = useCallback(async () => {
     if (!slug) return;
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("rooms")
       .select("*")
       .eq("slug", slug)
       .single();
 
-    if (!data) {
+    if (error || !data) {
       toast.error("Room not found");
       router.push("/leader");
-      return;
+      return null;
     }
 
     setRoom(data);
@@ -59,23 +58,25 @@ export default function RoomModeration() {
 
   // ---------------- INIT ----------------
   useEffect(() => {
+    let isMounted = true;
+
     const init = async () => {
       setLoading(true);
-
       const roomData = await fetchRoom();
-      if (roomData?.id) {
+      
+      if (isMounted && roomData?.id) {
         await fetchQuestions(roomData.id);
       }
-
-      setLoading(false);
+      
+      if (isMounted) setLoading(false);
     };
 
     init();
+    return () => { isMounted = false; };
   }, [fetchRoom, fetchQuestions]);
 
-  // ---------------- REALTIME (FIXED FOR PROD) ----------------
+  // ---------------- REALTIME (FIXED FOR NEXT 16) ----------------
   useEffect(() => {
-    // Only subscribe if we have a valid room ID
     if (!room?.id) return;
 
     const channel = supabase
@@ -85,28 +86,22 @@ export default function RoomModeration() {
         { event: "*", schema: "public", table: "questions" },
         (payload) => {
           const q: any = payload.new;
-          // Security check: Ensure the update belongs to this room
           if (!q?.room_id || q.room_id !== room.id) return;
 
           setQuestions((prev) => {
             const exists = prev.find((p) => p.id === q.id);
-
-            // If it's a new question, append it
             if (!exists) return [...prev, q];
-
-            // If it's an update, map the change
             return prev.map((p) => (p.id === q.id ? { ...p, ...q } : p));
           });
         }
       )
       .subscribe();
 
-    // The cleanup must be a synchronous function to satisfy the EffectCallback type
+    // CRITICAL: Cleanup must be a sync function returning void
     return () => {
-      // Fire and forget the channel removal promise
       supabase.removeChannel(channel);
     };
-  }, [room?.id]); // Using room.id prevents unnecessary re-subscriptions
+  }, [room?.id]); // Using ID instead of object for stability
 
   const pendingQuestions = questions.filter((q) => q.status === "pending");
   const activeQuestion = questions.find((q) => q.id === activeId);
@@ -126,7 +121,7 @@ export default function RoomModeration() {
       {/* HEADER */}
       <nav className="h-14 border-b border-white/5 flex items-center justify-between px-6 bg-black">
         <div className="flex items-center gap-4">
-          <Link href="/leader" className="p-2 hover:bg-white/5 rounded-lg">
+          <Link href="/leader" className="p-2 hover:bg-white/5 rounded-lg transition-colors">
             <ArrowLeft size={18} className="text-zinc-500" />
           </Link>
 
@@ -140,7 +135,7 @@ export default function RoomModeration() {
         <Link
           href={`/projector/${slug}`}
           target="_blank"
-          className="flex items-center gap-2 px-3 py-1.5 bg-zinc-900 border border-white/10 rounded text-[10px] uppercase tracking-widest hover:bg-white hover:text-black transition"
+          className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-white/10 rounded text-[10px] uppercase tracking-widest hover:bg-white hover:text-black transition-all duration-300"
         >
           Launch Projector <ExternalLink size={12} />
         </Link>
@@ -149,14 +144,14 @@ export default function RoomModeration() {
       {/* BODY */}
       <div className="flex flex-1 overflow-hidden">
         {/* PANELISTS */}
-        <aside className="w-72 border-r border-white/5 bg-black p-4 overflow-y-auto">
+        <aside className="w-72 border-r border-white/5 bg-black p-4 overflow-y-auto hidden md:block">
           {room && <PanelistPanel roomId={room.id} />}
         </aside>
 
         {/* QUESTION QUEUE */}
         <aside className="w-96 border-r border-white/5 bg-zinc-950 overflow-y-auto">
-          <div className="p-6 border-b border-white/5">
-            <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-600">
+          <div className="p-6 border-b border-white/5 sticky top-0 bg-zinc-950 z-10">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-600 mb-1">
               Live Queue
             </p>
             <h2 className="text-lg font-bold">
@@ -165,7 +160,7 @@ export default function RoomModeration() {
           </div>
 
           {pendingQuestions.length === 0 ? (
-            <div className="p-10 text-xs opacity-30 italic">
+            <div className="p-10 text-xs opacity-30 italic text-center">
               Waiting for audience...
             </div>
           ) : (
@@ -173,18 +168,18 @@ export default function RoomModeration() {
               <button
                 key={q.id}
                 onClick={() => setActiveId(q.id)}
-                className={`w-full text-left p-6 border-b border-white/5 hover:bg-white/[0.03] transition-colors ${
-                  activeId === q.id ? "bg-white/[0.05]" : ""
+                className={`w-full text-left p-6 border-b border-white/5 hover:bg-white/[0.03] transition-all ${
+                  activeId === q.id ? "bg-white/[0.07] border-l-2 border-l-white" : ""
                 }`}
               >
                 <div className="flex justify-between text-[10px] text-zinc-600 mb-2">
-                  <span>0{i + 1}</span>
+                  <span>{String(i + 1).padStart(2, '0')}</span>
                   <Clock size={12} />
                 </div>
 
-                <p className="text-sm text-zinc-300 mb-3">{q.content}</p>
+                <p className="text-sm text-zinc-300 mb-3 leading-relaxed">{q.content}</p>
 
-                <span className="text-[10px] uppercase tracking-widest text-zinc-600">
+                <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-medium">
                   {q.guest_name || "Anonymous"}
                 </span>
               </button>
@@ -193,19 +188,19 @@ export default function RoomModeration() {
         </aside>
 
         {/* WORKSPACE */}
-        <section className="flex-1 bg-black p-12 overflow-y-auto">
+        <section className="flex-1 bg-black p-12 overflow-y-auto flex flex-col items-center">
           {activeQuestion ? (
-            <div className="max-w-3xl">
-              <div className="flex items-center gap-2 mb-6 text-emerald-500 text-[10px] uppercase tracking-[0.4em]">
+            <div className="w-full max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="flex items-center gap-2 mb-8 text-emerald-500 text-[10px] uppercase tracking-[0.4em] font-bold">
                 <Terminal size={14} />
                 Active Control
               </div>
 
-              <h2 className="text-4xl font-black mb-10 leading-tight">
+              <h2 className="text-5xl font-black mb-12 leading-[1.1] tracking-tighter">
                 {activeQuestion.content}
               </h2>
 
-              <div className="bg-white/[0.02] border border-white/5 rounded-xl p-6">
+              <div className="bg-zinc-900/30 border border-white/5 rounded-2xl p-8 backdrop-blur-sm">
                 <AnswerBox
                   questionId={activeQuestion.id}
                   onComplete={() => setActiveId(null)}
@@ -213,8 +208,9 @@ export default function RoomModeration() {
               </div>
             </div>
           ) : (
-            <div className="h-full flex items-center justify-center opacity-20">
-              <MessageSquare size={40} />
+            <div className="h-full flex flex-col items-center justify-center opacity-10 space-y-4">
+              <MessageSquare size={60} strokeWidth={1} />
+              <p className="text-xs uppercase tracking-[0.5em]">Select a question to moderate</p>
             </div>
           )}
         </section>
