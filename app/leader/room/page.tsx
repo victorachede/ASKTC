@@ -1,50 +1,50 @@
-"use client"
+"use client";
 
-import { useState, useEffect, useCallback } from "react"
-import { useParams, useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
+import { useState, useEffect, useCallback } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 import {
   ArrowLeft,
   MessageSquare,
   Clock,
   ChevronRight,
   Terminal,
-  ExternalLink
-} from "lucide-react"
-import Link from "next/link"
-import toast from "react-hot-toast"
+  ExternalLink,
+} from "lucide-react";
+import Link from "next/link";
+import toast from "react-hot-toast";
 
-import PanelistPanel from "@/components/PanelistPanel"
-import AnswerBox from "@/components/AnswerBox"
+import PanelistPanel from "@/components/PanelistPanel";
+import AnswerBox from "@/components/AnswerBox";
 
 export default function RoomModeration() {
-  const { slug } = useParams()
-  const router = useRouter()
+  const { slug } = useParams();
+  const router = useRouter();
 
-  const [room, setRoom] = useState<any>(null)
-  const [questions, setQuestions] = useState<any[]>([])
-  const [activeId, setActiveId] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [room, setRoom] = useState<any>(null);
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   // ---------------- FETCH ROOM ----------------
   const fetchRoom = useCallback(async () => {
-    if (!slug) return
+    if (!slug) return;
 
     const { data } = await supabase
       .from("rooms")
       .select("*")
       .eq("slug", slug)
-      .single()
+      .single();
 
     if (!data) {
-      toast.error("Room not found")
-      router.push("/leader")
-      return
+      toast.error("Room not found");
+      router.push("/leader");
+      return;
     }
 
-    setRoom(data)
-    return data
-  }, [slug, router])
+    setRoom(data);
+    return data;
+  }, [slug, router]);
 
   // ---------------- FETCH QUESTIONS ----------------
   const fetchQuestions = useCallback(async (roomId: string) => {
@@ -52,30 +52,31 @@ export default function RoomModeration() {
       .from("questions")
       .select("*")
       .eq("room_id", roomId)
-      .order("created_at", { ascending: true })
+      .order("created_at", { ascending: true });
 
-    setQuestions(data || [])
-  }, [])
+    setQuestions(data || []);
+  }, []);
 
   // ---------------- INIT ----------------
   useEffect(() => {
     const init = async () => {
-      setLoading(true)
+      setLoading(true);
 
-      const roomData = await fetchRoom()
+      const roomData = await fetchRoom();
       if (roomData?.id) {
-        await fetchQuestions(roomData.id)
+        await fetchQuestions(roomData.id);
       }
 
-      setLoading(false)
-    }
+      setLoading(false);
+    };
 
-    init()
-  }, [fetchRoom, fetchQuestions])
+    init();
+  }, [fetchRoom, fetchQuestions]);
 
-  // ---------------- REALTIME ----------------
+  // ---------------- REALTIME (FIXED FOR PROD) ----------------
   useEffect(() => {
-    if (!room?.id) return
+    // Only subscribe if we have a valid room ID
+    if (!room?.id) return;
 
     const channel = supabase
       .channel(`room-mod-${room.id}`)
@@ -83,41 +84,45 @@ export default function RoomModeration() {
         "postgres_changes",
         { event: "*", schema: "public", table: "questions" },
         (payload) => {
-          const q: any = payload.new
-          if (!q?.room_id || q.room_id !== room.id) return
+          const q: any = payload.new;
+          // Security check: Ensure the update belongs to this room
+          if (!q?.room_id || q.room_id !== room.id) return;
 
-          setQuestions(prev => {
-            const exists = prev.find(p => p.id === q.id)
+          setQuestions((prev) => {
+            const exists = prev.find((p) => p.id === q.id);
 
-            if (!exists) return [...prev, q]
+            // If it's a new question, append it
+            if (!exists) return [...prev, q];
 
-            return prev.map(p =>
-              p.id === q.id ? { ...p, ...q } : p
-            )
-          })
+            // If it's an update, map the change
+            return prev.map((p) => (p.id === q.id ? { ...p, ...q } : p));
+          });
         }
       )
-      .subscribe()
+      .subscribe();
 
-    return () => supabase.removeChannel(channel)
-  }, [room])
+    // The cleanup must be a synchronous function to satisfy the EffectCallback type
+    return () => {
+      // Fire and forget the channel removal promise
+      supabase.removeChannel(channel);
+    };
+  }, [room?.id]); // Using room.id prevents unnecessary re-subscriptions
 
-  const pendingQuestions = questions.filter(q => q.status === "pending")
-  const activeQuestion = questions.find(q => q.id === activeId)
+  const pendingQuestions = questions.filter((q) => q.status === "pending");
+  const activeQuestion = questions.find((q) => q.id === activeId);
 
   if (loading) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
-        <div className="text-xs uppercase tracking-[0.3em] opacity-40">
+        <div className="text-xs uppercase tracking-[0.3em] opacity-40 animate-pulse">
           Booting moderation layer...
         </div>
       </div>
-    )
+    );
   }
 
   return (
     <main className="min-h-screen bg-[#050505] text-white flex flex-col">
-
       {/* HEADER */}
       <nav className="h-14 border-b border-white/5 flex items-center justify-between px-6 bg-black">
         <div className="flex items-center gap-4">
@@ -143,15 +148,13 @@ export default function RoomModeration() {
 
       {/* BODY */}
       <div className="flex flex-1 overflow-hidden">
-
-        {/* PANELISTS (NEW COLUMN) */}
+        {/* PANELISTS */}
         <aside className="w-72 border-r border-white/5 bg-black p-4 overflow-y-auto">
           {room && <PanelistPanel roomId={room.id} />}
         </aside>
 
         {/* QUESTION QUEUE */}
         <aside className="w-96 border-r border-white/5 bg-zinc-950 overflow-y-auto">
-
           <div className="p-6 border-b border-white/5">
             <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-600">
               Live Queue
@@ -170,7 +173,7 @@ export default function RoomModeration() {
               <button
                 key={q.id}
                 onClick={() => setActiveId(q.id)}
-                className={`w-full text-left p-6 border-b border-white/5 hover:bg-white/[0.03] ${
+                className={`w-full text-left p-6 border-b border-white/5 hover:bg-white/[0.03] transition-colors ${
                   activeId === q.id ? "bg-white/[0.05]" : ""
                 }`}
               >
@@ -179,9 +182,7 @@ export default function RoomModeration() {
                   <Clock size={12} />
                 </div>
 
-                <p className="text-sm text-zinc-300 mb-3">
-                  {q.content}
-                </p>
+                <p className="text-sm text-zinc-300 mb-3">{q.content}</p>
 
                 <span className="text-[10px] uppercase tracking-widest text-zinc-600">
                   {q.guest_name || "Anonymous"}
@@ -195,13 +196,12 @@ export default function RoomModeration() {
         <section className="flex-1 bg-black p-12 overflow-y-auto">
           {activeQuestion ? (
             <div className="max-w-3xl">
-
               <div className="flex items-center gap-2 mb-6 text-emerald-500 text-[10px] uppercase tracking-[0.4em]">
                 <Terminal size={14} />
                 Active Control
               </div>
 
-              <h2 className="text-4xl font-black mb-10">
+              <h2 className="text-4xl font-black mb-10 leading-tight">
                 {activeQuestion.content}
               </h2>
 
@@ -211,7 +211,6 @@ export default function RoomModeration() {
                   onComplete={() => setActiveId(null)}
                 />
               </div>
-
             </div>
           ) : (
             <div className="h-full flex items-center justify-center opacity-20">
@@ -219,8 +218,7 @@ export default function RoomModeration() {
             </div>
           )}
         </section>
-
       </div>
     </main>
-  )
+  );
 }
