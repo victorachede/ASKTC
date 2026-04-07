@@ -97,11 +97,11 @@ export default function RoomModeration() {
       )
       .subscribe();
 
-    // CRITICAL: Cleanup must be a sync function returning void
+    // CRITICAL FIX: The 'void' operator prevents a Promise return
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
-  }, [room?.id]); // Using ID instead of object for stability
+  }, [room?.id]);
 
   const pendingQuestions = questions.filter((q) => q.status === "pending");
   const activeQuestion = questions.find((q) => q.id === activeId);
@@ -217,4 +217,4 @@ export default function RoomModeration() {
       </div>
     </main>
   );
-}// Build Trigger: Tue, Apr  7, 2026  1:25:46 AM
+}
